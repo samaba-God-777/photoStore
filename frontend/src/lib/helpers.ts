@@ -278,7 +278,7 @@ const packageImages: Record<string, string> = {
   default: '/imagen/pic1.jpeg',
 };
 
-const getServerBase = () => {
+export const getServerBase = () => {
   const url = process.env.NEXT_PUBLIC_API_URL || 'https://photostore-46ci.onrender.com';
   return url.endsWith('/api') ? url.slice(0, -4) : url;
 };
