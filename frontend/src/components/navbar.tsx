@@ -115,7 +115,12 @@ const Navbar = () => {
 
           {isAuth ? (
             <div className="hidden sm:flex items-center gap-2">
-              <span className="text-sm text-neutral-400">{user?.name}</span>
+              <Link
+                href="/dashboard"
+                className="px-3 py-1 text-sm bg-primary/20 text-primary hover:bg-primary/30 rounded transition"
+              >
+                Dashboard
+              </Link>
               {user?.role === "admin" && (
                 <Link
                   href="/admin"
@@ -124,6 +129,7 @@ const Navbar = () => {
                   Admin
                 </Link>
               )}
+              <span className="text-sm text-neutral-400">{user?.name}</span>
               <button
                 onClick={handleLogout}
                 className="px-4 py-2 bg-red-600 text-white rounded-full text-sm font-black uppercase tracking-widest hover:bg-red-700 transition-colors"
@@ -170,6 +176,13 @@ const Navbar = () => {
               <div className="px-6 py-3 text-sm text-neutral-400">
                 Usuario: {user?.name}
               </div>
+              <Link
+                href="/dashboard"
+                className="block py-3 px-6 hover:bg-white/5 transition-colors"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                Dashboard
+              </Link>
               {user?.role === "admin" && (
                 <Link
                   href="/admin"
