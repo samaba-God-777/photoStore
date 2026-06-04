@@ -129,7 +129,8 @@ const forgotPassword = async (req, res) => {
     user.resetPasswordExpire = Date.now() + 30 * 60 * 1000;
     await user.save({ validateBeforeSave: false });
 
-    const resetUrl = `${req.protocol}://${req.get('host') === 'localhost:5005' ? 'localhost:3000' : 'https://photostore-2.onrender.com'}/auth/reset-password/${resetToken}`;
+    const baseUrl = req.get('host')?.includes('localhost') ? 'http://localhost:3000' : 'https://photostore-2.onrender.com';
+    const resetUrl = `${baseUrl}/auth/reset-password/${resetToken}`;
 
     const message = `Recibiste este email porque solicitaste restablecer tu contraseña.
 

@@ -35,6 +35,12 @@ function ForgotPasswordForm() {
             <p className="text-neutral-400 mb-6">
               Si existe una cuenta con <strong className="text-white">{email}</strong>, recibirás un enlace para restablecer tu contraseña.
             </p>
+            {resetUrl && (
+              <div className="mb-6 p-3 bg-white/5 rounded-xl border border-white/10">
+                <p className="text-xs text-neutral-500 mb-1">Enlace de reseteo:</p>
+                <a href={resetUrl} className="text-sm text-primary break-all hover:underline">{resetUrl}</a>
+              </div>
+            )}
             <Link
               href="/auth"
               className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
