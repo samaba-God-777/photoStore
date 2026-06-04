@@ -1,5 +1,6 @@
 // API Service - TypeScript
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5005/api';
+const rawUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5005';
+const BASE_URL = rawUrl.endsWith('/api') ? rawUrl : rawUrl + '/api';
 
 const getToken = () => {
   if (typeof window !== 'undefined') {

@@ -277,10 +277,15 @@ const packageImages: Record<string, string> = {
   default: '/imagen/pic1.jpeg',
 };
 
+const getServerBase = () => {
+  const url = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5005';
+  return url.endsWith('/api') ? url.slice(0, -4) : url;
+};
+
 export const getPackageImageUrl = (image: string | null | undefined): string => {
   if (!image) return '';
   if (image.startsWith('http://') || image.startsWith('https://')) return image;
-  if (image.startsWith('/uploads/')) return `${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5005'}${image}`;
+  if (image.startsWith('/uploads/')) return `${getServerBase()}${image}`;
   return image;
 };
 
