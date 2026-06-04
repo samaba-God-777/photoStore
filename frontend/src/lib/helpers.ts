@@ -6,6 +6,7 @@ export interface User {
   name: string;
   phone?: string;
   role: 'user' | 'customer' | 'admin';
+  avatar?: string;
   createdAt?: string;
 }
 

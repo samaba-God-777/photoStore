@@ -159,6 +159,12 @@ export const apiUpdateOrderStatus = (id: string, body: Record<string, unknown>) 
     body: JSON.stringify(body),
   });
 
+export const apiUpdateProfile = (body: FormData) =>
+  request(`${BASE_URL}/auth/me`, {
+    method: 'PUT',
+    body,
+  }, true);
+
 // Password Reset
 export const apiForgotPassword = (email: string) =>
   request(`${BASE_URL}/auth/forgot-password`, {

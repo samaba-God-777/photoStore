@@ -104,6 +104,7 @@ const getMe = async (req, res) => {
       email: req.user.email,
       phone: req.user.phone,
       role: req.user.role,
+      avatar: req.user.avatar,
       createdAt: req.user.createdAt
     }
   });
@@ -210,4 +211,55 @@ const resetPassword = async (req, res) => {
   }
 };
 
-module.exports = { register, login, getMe, forgotPassword, resetPassword };
+// @desc    Actualizar perfil del usuario
+// @route   PUT /api/auth/me
+// @access  Privado
+const updateProfile = async (req, res) => {
+  try {
+    const { name, phone, password } = req.body;
+    const user = req.user;
+
+    if (name) {
+      if (name.length > 50) {
+        return res.status(400).json({ success: false, message: 'El nombre no puede tener más de 50 caracteres.' });
+      }
+      user.name = name;
+    }
+
+    if (phone !== undefined) {
+      user.phone = phone;
+    }
+
+    if (password) {
+      if (password.length < 6) {
+        return res.status(400).json({ success: false, message: 'La contraseña debe tener al menos 6 caracteres.' });
+      }
+      user.password = password;
+    }
+
+    if (req.file) {
+      user.avatar = `/uploads/${req.file.filename}`;
+    }
+
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Perfil actualizado exitosamente.',
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        avatar: user.avatar,
+        createdAt: user.createdAt
+      }
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Error del servidor.' });
+  }
+};
+
+module.exports = { register, login, getMe, forgotPassword, resetPassword, updateProfile };

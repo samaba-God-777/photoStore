@@ -186,6 +186,9 @@ export default function DashboardPage() {
               <div className="mt-2 inline-flex rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-neutral-200">
                 {user.role === 'admin' ? 'Administrador' : 'Cliente'}
               </div>
+              <Link href="/cuenta" className="mt-2 inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                Editar perfil
+              </Link>
             </div>
           </div>
 
