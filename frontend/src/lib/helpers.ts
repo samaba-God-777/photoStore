@@ -278,7 +278,7 @@ const packageImages: Record<string, string> = {
 };
 
 const getServerBase = () => {
-  const url = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5005';
+  const url = process.env.NEXT_PUBLIC_API_URL || 'https://tu-backend.onrender.com';
   return url.endsWith('/api') ? url.slice(0, -4) : url;
 };
 
