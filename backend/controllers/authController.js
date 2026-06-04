@@ -1,5 +1,7 @@
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const sendEmail = require('../utils/email');
 
 // Generar JWT
 const generateToken = (userId) => {
@@ -107,4 +109,104 @@ const getMe = async (req, res) => {
   });
 };
 
-module.exports = { register, login, getMe };
+// @desc    Olvidé contraseña - enviar token de reseteo
+// @route   POST /api/auth/forgot-password
+// @access  Público
+const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'El email es requerido.' });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'No existe una cuenta con ese email.' });
+    }
+
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    user.resetPasswordToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+    user.resetPasswordExpire = Date.now() + 30 * 60 * 1000;
+    await user.save({ validateBeforeSave: false });
+
+    const resetUrl = `${req.protocol}://${req.get('host') === 'localhost:5005' ? 'localhost:3000' : 'https://photostore-2.onrender.com'}/auth/reset-password/${resetToken}`;
+
+    const message = `Recibiste este email porque solicitaste restablecer tu contraseña.
+
+Haz clic en el siguiente enlace para restablecerla:
+${resetUrl}
+
+Si no solicitaste esto, ignora este mensaje.
+Este enlace expirará en 30 minutos.`;
+
+    try {
+      await sendEmail({
+        email: user.email,
+        subject: 'Restablecer contraseña - PhotoStudio',
+        message
+      });
+    } catch (err) {
+      user.resetPasswordToken = null;
+      user.resetPasswordExpire = null;
+      await user.save({ validateBeforeSave: false });
+      return res.status(500).json({ success: false, message: 'Error al enviar el email.' });
+    }
+
+    res.json({
+      success: true,
+      message: 'Correo enviado con las instrucciones para restablecer tu contraseña.',
+      resetUrl
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Error del servidor.' });
+  }
+};
+
+// @desc    Resetear contraseña con token
+// @route   PUT /api/auth/reset-password/:token
+// @access  Público
+const resetPassword = async (req, res) => {
+  try {
+    const hashedToken = crypto.createHash('sha256').update(req.params.token).digest('hex');
+
+    const user = await User.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpire: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.status(400).json({ success: false, message: 'Token inválido o expirado.' });
+    }
+
+    const { password } = req.body;
+    if (!password || password.length < 6) {
+      return res.status(400).json({ success: false, message: 'La contraseña debe tener al menos 6 caracteres.' });
+    }
+
+    user.password = password;
+    user.resetPasswordToken = null;
+    user.resetPasswordExpire = null;
+    await user.save();
+
+    const token = generateToken(user._id);
+
+    res.json({
+      success: true,
+      message: 'Contraseña restablecida exitosamente.',
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role
+      }
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Error del servidor.' });
+  }
+};
+
+module.exports = { register, login, getMe, forgotPassword, resetPassword };

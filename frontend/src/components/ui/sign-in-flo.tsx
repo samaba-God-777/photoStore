@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { Eye, EyeOff, Globe, Mail, Lock, User } from "lucide-react";
+import Link from "next/link";
 
 interface FormFieldProps {
   type: string;
@@ -285,9 +286,9 @@ export const Component: React.FC<{
               </label>
 
               {!isSignUp && (
-                <button type="button" className="text-sm text-primary hover:underline">
+                <Link href="/auth/forgot-password" className="text-sm text-primary hover:underline">
                   ¿Olvidaste tu contraseña?
-                </button>
+                </Link>
               )}
             </div>
 

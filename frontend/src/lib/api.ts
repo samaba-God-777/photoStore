@@ -159,6 +159,21 @@ export const apiUpdateOrderStatus = (id: string, body: Record<string, unknown>) 
     body: JSON.stringify(body),
   });
 
+// Password Reset
+export const apiForgotPassword = (email: string) =>
+  request(`${BASE_URL}/auth/forgot-password`, {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify({ email }),
+  });
+
+export const apiResetPassword = (token: string, password: string) =>
+  request(`${BASE_URL}/auth/reset-password/${token}`, {
+    method: 'PUT',
+    headers: headers(),
+    body: JSON.stringify({ password }),
+  });
+
 // Admin
 export const apiGetAdminSummary = () =>
   request(`${BASE_URL}/admin/summary`, { method: 'GET' });
