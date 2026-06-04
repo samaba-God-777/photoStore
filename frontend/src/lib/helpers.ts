@@ -278,7 +278,7 @@ const packageImages: Record<string, string> = {
 };
 
 const getServerBase = () => {
-  const url = process.env.NEXT_PUBLIC_API_URL || 'https://tu-backend.onrender.com';
+  const url = process.env.NEXT_PUBLIC_API_URL || 'https://photostore-46ci.onrender.com';
   return url.endsWith('/api') ? url.slice(0, -4) : url;
 };
 

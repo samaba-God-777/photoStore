@@ -1,5 +1,5 @@
 // API Service - TypeScript
-const rawUrl = process.env.NEXT_PUBLIC_API_URL || 'https://tu-backend.onrender.com';
+const rawUrl = process.env.NEXT_PUBLIC_API_URL || 'https://photostore-46ci.onrender.com';
 const BASE_URL = rawUrl.endsWith('/api') ? rawUrl : rawUrl + '/api';
 
 const getToken = () => {
