@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiUpdateProfile, apiGetMe } from '@/lib/api';
+import { apiUpdateProfile } from '@/lib/api';
 import { getUser, saveUser, showToast, getServerBase } from '@/lib/helpers';
 import { User, Camera, Save, ArrowLeft, Eye, EyeOff, Loader2 } from 'lucide-react';
 import Link from 'next/link';
@@ -53,6 +53,10 @@ export default function CuentaPage() {
       const res = await apiUpdateProfile(formData);
       if (res?.user) {
         saveUser({ ...res.user, _id: res.user.id || res.user._id });
+        if (res.user.avatar) {
+          setAvatar(res.user.avatar);
+          setAvatarFile(null);
+        }
         showToast('Perfil actualizado', 'success');
         setPassword('');
       }

@@ -38,7 +38,8 @@ const register = async (req, res) => {
         name: user.name,
         email: user.email,
         phone: user.phone,
-        role: user.role
+        role: user.role,
+        avatar: user.avatar
       }
     });
   } catch (err) {
@@ -83,7 +84,8 @@ const login = async (req, res) => {
         name: user.name,
         email: user.email,
         phone: user.phone,
-        role: user.role
+        role: user.role,
+        avatar: user.avatar
       }
     });
   } catch (err) {
@@ -202,7 +204,8 @@ const resetPassword = async (req, res) => {
         name: user.name,
         email: user.email,
         phone: user.phone,
-        role: user.role
+        role: user.role,
+        avatar: user.avatar
       }
     });
   } catch (err) {
