@@ -2,7 +2,18 @@
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
+import {
+  Home,
+  Package as PackageIcon,
+  ShoppingCart,
+  Users as UsersIcon,
+  ChevronsRight,
+  RefreshCw,
+  LogOut,
+  ExternalLink,
+} from "lucide-react";
 import {
   apiCreatePackageForm,
   apiDeleteOrder,
@@ -483,11 +494,11 @@ export default function AdminPage() {
     );
   }
 
-  const navItems: Array<{ id: AdminTab; label: string }> = [
-    { id: "dashboard", label: "Dashboard" },
-    { id: "packages", label: "Paquetes" },
-    { id: "orders", label: "Órdenes" },
-    { id: "users", label: "Usuarios" },
+  const navItems: Array<{ id: AdminTab; label: string; icon: React.ComponentType<{ className?: string }>; notifs?: number }> = [
+    { id: "dashboard", label: "Dashboard", icon: Home },
+    { id: "packages", label: "Paquetes", icon: PackageIcon, notifs: filteredPackages.length || undefined },
+    { id: "orders", label: "Órdenes", icon: ShoppingCart, notifs: filteredSummary.statusBreakdown.pending || undefined },
+    { id: "users", label: "Usuarios", icon: UsersIcon, notifs: filteredOnlineUsers.length || undefined },
   ];
 
   const renderDashboard = () => (
@@ -668,12 +679,14 @@ export default function AdminPage() {
               setEditingPackageImageUrl(null);
             }} className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white file:mr-4 file:rounded-lg file:border-0 file:bg-primary file:px-4 file:py-2 file:font-semibold file:text-primary-foreground" />
             {(packageImage || editingPackageImageUrl) && (
-              <div className="mt-3 rounded-xl overflow-hidden border border-neutral-700 bg-neutral-950/50">
-                <img
+              <div className="mt-3 rounded-xl overflow-hidden border border-neutral-700 bg-neutral-950/50 relative h-48">
+                <Image
                   key={packageImage?.name || editingPackageImageUrl}
                   src={packageImage ? URL.createObjectURL(packageImage) : getPackageImageUrl(editingPackageImageUrl)}
                   alt="Vista previa"
-                  className="w-full h-48 object-contain bg-neutral-900"
+                  fill
+                  unoptimized
+                  className="object-contain bg-neutral-900"
                   onError={(e) => { e.currentTarget.style.display = 'none'; }}
                 />
                 <p className="text-[11px] text-neutral-500 text-center py-2">
@@ -700,11 +713,12 @@ export default function AdminPage() {
           {filteredPackages.map((pkg) => (
             <div key={pkg._id} className="rounded-2xl border border-neutral-800 bg-neutral-950/70 p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="w-16 h-16 sm:w-24 sm:h-24 rounded-xl overflow-hidden flex-shrink-0 border border-neutral-800 bg-neutral-900">
-                  <img
+                <div className="w-16 h-16 sm:w-24 sm:h-24 rounded-xl overflow-hidden flex-shrink-0 border border-neutral-800 bg-neutral-900 relative">
+                  <Image
                     src={getPackageImage(pkg)}
                     alt={pkg.name}
-                    className="w-full h-full object-cover"
+                    fill
+                    className="object-cover"
                     onError={(e) => { e.currentTarget.style.display = 'none'; }}
                   />
                 </div>
@@ -853,144 +867,194 @@ export default function AdminPage() {
   );
 
   return (
-    <div className="container mx-auto px-6 py-20">
-      <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between mb-10">
-        <div>
-          <div className="text-xs font-bold uppercase tracking-[0.3em] text-primary mb-3">Panel administrativo</div>
-          <h1 className="text-4xl font-black tracking-tight text-white">Administra todo desde un solo lugar</h1>
-          <p className="mt-3 max-w-2xl text-neutral-400">
-            Paquetes, órdenes, usuarios conectados y gestión de cuentas en tiempo real.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <button onClick={() => setActiveTab("dashboard")} className="rounded-full border border-neutral-700 bg-neutral-900 px-5 py-3 text-sm font-bold text-white hover:bg-neutral-800">
-            Vista general
-          </button>
-          <button onClick={() => setActiveTab("packages")} className="rounded-full border border-neutral-700 bg-neutral-900 px-5 py-3 text-sm font-bold text-white hover:bg-neutral-800">
-            Nuevo servicio
-          </button>
-          <button onClick={loadData} className="rounded-full border border-neutral-700 bg-neutral-900 px-5 py-3 text-sm font-bold text-white hover:bg-neutral-800">
-            Actualizar
-          </button>
-          <button onClick={logout} className="rounded-full bg-red-600 px-5 py-3 text-sm font-bold text-white hover:bg-red-700">
-            Salir
-          </button>
-          <Link href="/" className="rounded-full bg-primary px-5 py-3 text-sm font-bold text-primary-foreground">
-            Ver sitio
-          </Link>
-        </div>
-      </div>
+    <div className="flex min-h-screen w-full bg-neutral-950 text-white">
+      <AdminSidebar
+        navItems={navItems}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        currentUser={currentUser}
+      />
 
-      <div className="mb-8 rounded-[2rem] border border-neutral-800 bg-neutral-900/60 p-5">
-        {loadWarning && (
-          <div className="mb-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-            {loadWarning}
-          </div>
-        )}
-        <div className="grid gap-4 xl:grid-cols-[1.6fr_0.7fr_0.7fr]">
+      <main className="flex-1 px-6 py-10 lg:px-10 overflow-x-hidden">
+        <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between mb-8">
           <div>
-            <label className="mb-2 block text-sm font-semibold text-neutral-300">Búsqueda rápida</label>
-            <input
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar usuarios, órdenes, paquetes..."
-              className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-primary"
-            />
+            <div className="text-xs font-bold uppercase tracking-[0.3em] text-primary mb-3">Panel administrativo</div>
+            <h1 className="text-3xl lg:text-4xl font-black tracking-tight text-white">Administra todo desde un solo lugar</h1>
+            <p className="mt-3 max-w-2xl text-neutral-400">
+              Paquetes, órdenes, usuarios conectados y gestión de cuentas en tiempo real.
+            </p>
           </div>
-          <div>
-            <label className="mb-2 block text-sm font-semibold text-neutral-300">Desde</label>
-            <input
-              type="date"
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-primary"
-            />
-          </div>
-          <div>
-            <label className="mb-2 block text-sm font-semibold text-neutral-300">Hasta</label>
-            <input
-              type="date"
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-              className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-primary"
-            />
+          <div className="flex flex-wrap gap-3">
+            <button onClick={loadData} className="flex items-center gap-2 rounded-full border border-neutral-700 bg-neutral-900 px-5 py-3 text-sm font-bold text-white hover:bg-neutral-800">
+              <RefreshCw className="h-4 w-4" />
+              Actualizar
+            </button>
+            <button onClick={logout} className="flex items-center gap-2 rounded-full bg-red-600 px-5 py-3 text-sm font-bold text-white hover:bg-red-700">
+              <LogOut className="h-4 w-4" />
+              Salir
+            </button>
+            <Link href="/" className="flex items-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-bold text-primary-foreground">
+              <ExternalLink className="h-4 w-4" />
+              Ver sitio
+            </Link>
           </div>
         </div>
-        <div className="mt-4 flex flex-wrap gap-3">
-          <button
-            type="button"
-            onClick={() => {
-              const today = new Date();
-              const from = new Date(today);
-              from.setDate(today.getDate() - 30);
-              setFromDate(from.toISOString().slice(0, 10));
-              setToDate(today.toISOString().slice(0, 10));
-            }}
-            className="rounded-full border border-neutral-700 bg-neutral-950 px-4 py-2 text-sm font-semibold text-white hover:bg-white/5"
-          >
-            Últimos 30 días
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setFromDate("");
-              setToDate("");
-              setSearchTerm("");
-            }}
-            className="rounded-full border border-neutral-700 bg-neutral-950 px-4 py-2 text-sm font-semibold text-white hover:bg-white/5"
-          >
-            Limpiar filtros
-          </button>
-          <div className="text-sm text-neutral-500 self-center">
-            {filteredOrders.length} órdenes visibles · {filteredPackages.length} paquetes visibles · {filteredUsers.length} usuarios visibles
-          </div>
-        </div>
-      </div>
 
-      <div className="grid lg:grid-cols-[280px_1fr] gap-8">
-        <aside className="space-y-4">
-          <Panel title="Secciones">
-            <div className="space-y-2">
-              {navItems.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveTab(item.id)}
-                  className={`w-full rounded-2xl px-4 py-3 text-left text-sm font-bold transition-colors ${
-                    activeTab === item.id
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-neutral-950 text-neutral-300 hover:bg-white/5"
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
+        <div className="mb-8 rounded-[2rem] border border-neutral-800 bg-neutral-900/60 p-5">
+          {loadWarning && (
+            <div className="mb-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+              {loadWarning}
             </div>
-          </Panel>
-
-          <Panel title="Estado actual">
-            <div className="space-y-3 text-sm">
-              <StatLine label="Administrador" value={currentUser.name} />
-              <StatLine label="Correo" value={currentUser.email} />
-            </div>
-          </Panel>
-        </aside>
-
-        <main className="space-y-8">
-          {loading ? (
-            <Panel title="Cargando">
-              <div className="py-12 text-center text-neutral-400">Cargando datos del panel administrativo...</div>
-            </Panel>
-          ) : (
-            <>
-              {activeTab === "dashboard" && renderDashboard()}
-              {activeTab === "packages" && renderPackages()}
-              {activeTab === "orders" && renderOrders()}
-              {activeTab === "users" && renderUsers()}
-            </>
           )}
-        </main>
-      </div>
+          <div className="grid gap-4 xl:grid-cols-[1.6fr_0.7fr_0.7fr]">
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-neutral-300">Búsqueda rápida</label>
+              <input
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Buscar usuarios, órdenes, paquetes..."
+                className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-primary"
+              />
+            </div>
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-neutral-300">Desde</label>
+              <input
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-primary"
+              />
+            </div>
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-neutral-300">Hasta</label>
+              <input
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-primary"
+              />
+            </div>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                const today = new Date();
+                const from = new Date(today);
+                from.setDate(today.getDate() - 30);
+                setFromDate(from.toISOString().slice(0, 10));
+                setToDate(today.toISOString().slice(0, 10));
+              }}
+              className="rounded-full border border-neutral-700 bg-neutral-950 px-4 py-2 text-sm font-semibold text-white hover:bg-white/5"
+            >
+              Últimos 30 días
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setFromDate("");
+                setToDate("");
+                setSearchTerm("");
+              }}
+              className="rounded-full border border-neutral-700 bg-neutral-950 px-4 py-2 text-sm font-semibold text-white hover:bg-white/5"
+            >
+              Limpiar filtros
+            </button>
+            <div className="text-sm text-neutral-500 self-center">
+              {filteredOrders.length} órdenes visibles · {filteredPackages.length} paquetes visibles · {filteredUsers.length} usuarios visibles
+            </div>
+          </div>
+        </div>
+
+        {loading ? (
+          <Panel title="Cargando">
+            <div className="py-12 text-center text-neutral-400">Cargando datos del panel administrativo...</div>
+          </Panel>
+        ) : (
+          <>
+            {activeTab === "dashboard" && renderDashboard()}
+            {activeTab === "packages" && renderPackages()}
+            {activeTab === "orders" && renderOrders()}
+            {activeTab === "users" && renderUsers()}
+          </>
+        )}
+      </main>
     </div>
+  );
+}
+
+function AdminSidebar({
+  navItems,
+  activeTab,
+  setActiveTab,
+  currentUser,
+}: {
+  navItems: Array<{ id: AdminTab; label: string; icon: React.ComponentType<{ className?: string }>; notifs?: number }>;
+  activeTab: AdminTab;
+  setActiveTab: (tab: AdminTab) => void;
+  currentUser: AdminUser;
+}) {
+  const [open, setOpen] = useState(true);
+
+  return (
+    <nav
+      className={`sticky top-0 h-screen shrink-0 border-r border-neutral-800 bg-neutral-900 p-2 shadow-sm transition-all duration-300 ease-in-out ${
+        open ? "w-64" : "w-16"
+      }`}
+    >
+      <div className="mb-6 border-b border-neutral-800 pb-4">
+        <div className="flex items-center gap-3 rounded-md p-2">
+          <div className="grid size-10 shrink-0 place-content-center rounded-lg bg-gradient-to-br from-primary to-primary/70 shadow-sm text-sm font-black text-primary-foreground">
+            OF
+          </div>
+          {open && (
+            <div className="min-w-0">
+              <span className="block truncate text-sm font-semibold text-white">{currentUser.name}</span>
+              <span className="block truncate text-xs text-neutral-500">{currentUser.email}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        {navItems.map((item) => {
+          const isSelected = activeTab === item.id;
+          return (
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id)}
+              className={`relative flex h-11 w-full items-center rounded-md transition-all duration-200 ${
+                isSelected
+                  ? "bg-primary/15 text-primary border-l-2 border-primary"
+                  : "text-neutral-400 hover:bg-white/5 hover:text-white"
+              }`}
+            >
+              <div className="grid h-full w-12 place-content-center">
+                <item.icon className="h-4 w-4" />
+              </div>
+              {open && <span className="flex-1 truncate text-left text-sm font-medium">{item.label}</span>}
+              {!!item.notifs && open && (
+                <span className="absolute right-3 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
+                  {item.notifs}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      <button
+        onClick={() => setOpen(!open)}
+        className="absolute bottom-0 left-0 right-0 border-t border-neutral-800 transition-colors hover:bg-white/5"
+      >
+        <div className="flex items-center p-3">
+          <div className="grid size-10 place-content-center">
+            <ChevronsRight className={`h-4 w-4 text-neutral-400 transition-transform duration-300 ${open ? "rotate-180" : ""}`} />
+          </div>
+          {open && <span className="text-sm font-medium text-neutral-300">Ocultar</span>}
+        </div>
+      </button>
+    </nav>
   );
 }
 
@@ -1025,14 +1089,6 @@ function Field({ label, input }: { label: string; input: React.ReactNode }) {
   );
 }
 
-function StatLine({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <span className="text-neutral-500">{label}</span>
-      <span className="font-semibold text-white text-right">{value}</span>
-    </div>
-  );
-}
 
 function ToggleField({ checked, label, onToggle }: { checked: boolean; label: string; onToggle: (checked: boolean) => void }) {
   return (

@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import Image from 'next/image';
 import { addToCart, formatCurrency, getPackageImage, getPackageKey, Package } from '@/lib/helpers';
 
 const FALLBACK_IMG = '/imagen/pic1.jpeg';
@@ -44,10 +45,12 @@ export function PackageCard({ pkg, onAddToCart }: PackageCardProps) {
   return (
     <div className={`group overflow-hidden rounded-[2rem] border border-white/10 bg-gradient-to-b from-[#050816]/90 via-[#07101f]/90 to-[#08111f] shadow-[0_30px_80px_-45px_rgba(59,130,246,0.75)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_35px_90px_-35px_rgba(79,70,229,0.55)] ring-1 ring-white/5 ${accent}`}>
       <div className="relative overflow-hidden h-60 bg-neutral-900">
-        <img
+        <Image
           src={imageUrl}
           alt={pkg.name}
-          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+          fill
+          sizes="(max-width: 768px) 100vw, 33vw"
+          className="object-cover transition-transform duration-500 group-hover:scale-110"
           onError={() => setImgError(true)}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />

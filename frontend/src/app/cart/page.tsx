@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { removeFromCart, updateCartQuantity, getCartTotal, formatCurrency, getPackageImage } from '@/lib/helpers';
 
 interface CartItem {
@@ -121,9 +122,11 @@ export default function CartPage() {
                   key={item._id}
                   className="bg-neutral-900 border border-neutral-800 rounded-lg p-6 flex gap-6 items-start"
                 >
-                  <img
+                  <Image
                     src={getPackageImage(item)}
                     alt={item.name}
+                    width={96}
+                    height={96}
                     className="w-24 h-24 object-cover rounded-lg flex-shrink-0"
                   />
                   <div className="flex-grow">

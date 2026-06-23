@@ -1,5 +1,6 @@
 "use client"
 import React, { useState, useEffect } from "react";
+import Image from "next/image";
 import { getPackageImage } from "@/lib/helpers";
 import { apiGetPackages } from "@/lib/api";
 
@@ -384,11 +385,12 @@ const ExampleContent = ({ isDark, setIsDark }: { isDark: boolean; setIsDark: (da
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {packages.length > 0 ? packages.filter(p => p.active !== false).slice(0, 4).map((pkg) => (
             <div key={pkg._id} className="group relative rounded-xl overflow-hidden border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer">
-              <div className="h-32 sm:h-40 bg-neutral-100 dark:bg-neutral-800 overflow-hidden">
-                <img
+              <div className="h-32 sm:h-40 bg-neutral-100 dark:bg-neutral-800 overflow-hidden relative">
+                <Image
                   src={getPackageImage(pkg)}
                   alt={pkg.name}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  fill
+                  className="object-cover group-hover:scale-105 transition-transform duration-300"
                   onError={(e) => { e.currentTarget.style.display = 'none'; }}
                 />
               </div>

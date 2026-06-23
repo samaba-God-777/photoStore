@@ -5,6 +5,7 @@ import { apiUpdateProfile } from '@/lib/api';
 import { getUser, saveUser, showToast, getServerBase } from '@/lib/helpers';
 import { User, Camera, Save, ArrowLeft, Eye, EyeOff, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function CuentaPage() {
   const router = useRouter();
@@ -82,7 +83,7 @@ export default function CuentaPage() {
             <div className="relative inline-block">
               <div className="w-24 h-24 rounded-full bg-white/10 flex items-center justify-center overflow-hidden border-2 border-primary/30">
                 {avatarUrl ? (
-                  <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                  <Image src={avatarUrl} alt="Avatar" width={96} height={96} unoptimized className="w-full h-full object-cover" />
                 ) : (
                   <User className="w-10 h-10 text-muted-foreground" />
                 )}
