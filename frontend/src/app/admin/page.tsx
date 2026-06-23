@@ -9,11 +9,13 @@ import {
   Package as PackageIcon,
   ShoppingCart,
   Users as UsersIcon,
+  Image as ImageIcon,
   ChevronsRight,
   RefreshCw,
   LogOut,
   ExternalLink,
 } from "lucide-react";
+import { galleryService, type GalleryPhoto } from "@/services/galleryService";
 import {
   apiCreatePackageForm,
   apiDeleteOrder,
@@ -29,7 +31,7 @@ import {
 } from "@/lib/api";
 import { formatCurrency, formatDate, getPackageImage, getPackageImageUrl, isAuthenticated, logout, showToast, type Package, type User } from "@/lib/helpers";
 
-type AdminTab = "dashboard" | "packages" | "orders" | "users";
+type AdminTab = "dashboard" | "packages" | "orders" | "users" | "gallery";
 
 type AdminUser = User & {
   phone?: string;
@@ -147,29 +149,36 @@ export default function AdminPage() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [loadWarning, setLoadWarning] = useState<string | null>(null);
+  const [galleryPhotos, setGalleryPhotos] = useState<GalleryPhoto[]>([]);
+  const [galleryPhoto, setGalleryPhoto] = useState<File | null>(null);
+  const [galleryTitle, setGalleryTitle] = useState("");
+  const [editingGalleryId, setEditingGalleryId] = useState<string | null>(null);
 
   const loadData = async () => {
     setLoading(true);
     setLoadWarning(null);
     try {
-      const [packagesRes, ordersRes, usersRes, onlineRes] = await Promise.allSettled([
+      const [packagesRes, ordersRes, usersRes, onlineRes, galleryRes] = await Promise.allSettled([
         apiGetAdminPackages(),
         apiGetOrders(),
         apiGetAdminUsers(),
         apiGetOnlineUsers(),
+        galleryService.getAll(),
       ]);
 
       const packagesData = packagesRes.status === "fulfilled" ? (packagesRes.value.data || packagesRes.value) : [];
       const ordersData = ordersRes.status === "fulfilled" ? (ordersRes.value.data || ordersRes.value) : [];
       const usersData = usersRes.status === "fulfilled" ? (usersRes.value.data || usersRes.value) : [];
       const onlineData = onlineRes.status === "fulfilled" ? (onlineRes.value.data || onlineRes.value) : [];
+      const galleryData = galleryRes.status === "fulfilled" ? galleryRes.value : [];
 
       setPackages(packagesData);
       setOrders(ordersData);
       setUsers(usersData);
       setOnlineUsers(onlineData);
+      setGalleryPhotos(galleryData);
 
-      const failed = [packagesRes, ordersRes, usersRes, onlineRes].some((item) => item.status === "rejected");
+      const failed = [packagesRes, ordersRes, usersRes, onlineRes, galleryRes].some((item) => item.status === "rejected");
       if (failed) {
         setLoadWarning("Algunos datos no pudieron cargarse. El panel sigue funcionando con la información disponible.");
       }
@@ -341,6 +350,59 @@ export default function AdminPage() {
     }
   };
 
+  const handleGalleryUpload = async () => {
+    if (!galleryPhoto || !galleryTitle.trim()) {
+      showToast("Selecciona una imagen y escribe un título", "warning");
+      return;
+    }
+    setBusyId("gallery-upload");
+    try {
+      await galleryService.upload(galleryPhoto, galleryTitle.trim());
+      showToast("Imagen subida", "success");
+      setGalleryPhoto(null);
+      setGalleryTitle("");
+      await loadData();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "No se pudo subir la imagen", "error");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleGalleryUpdate = async () => {
+    if (!editingGalleryId || !galleryTitle.trim()) {
+      showToast("Escribe un título", "warning");
+      return;
+    }
+    setBusyId("gallery-update");
+    try {
+      await galleryService.update(editingGalleryId, galleryTitle.trim());
+      showToast("Imagen actualizada", "success");
+      setEditingGalleryId(null);
+      setGalleryTitle("");
+      setGalleryPhoto(null);
+      await loadData();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "No se pudo actualizar", "error");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleGalleryDelete = async (id: string) => {
+    if (!confirm("¿Eliminar esta imagen de la galería?")) return;
+    setBusyId(id);
+    try {
+      await galleryService.remove(id);
+      showToast("Imagen eliminada", "success");
+      await loadData();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "No se pudo eliminar", "error");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const normalizedSearch = searchTerm.trim().toLowerCase();
 
   const filteredOrders = useMemo(() => {
@@ -499,6 +561,7 @@ export default function AdminPage() {
     { id: "packages", label: "Paquetes", icon: PackageIcon, notifs: filteredPackages.length || undefined },
     { id: "orders", label: "Órdenes", icon: ShoppingCart, notifs: filteredSummary.statusBreakdown.pending || undefined },
     { id: "users", label: "Usuarios", icon: UsersIcon, notifs: filteredOnlineUsers.length || undefined },
+    { id: "gallery", label: "Galería", icon: ImageIcon, notifs: galleryPhotos.length || undefined },
   ];
 
   const renderDashboard = () => (
@@ -866,6 +929,120 @@ export default function AdminPage() {
     </Panel>
   );
 
+  const renderGallery = () => (
+    <div className="grid xl:grid-cols-[0.9fr_1.1fr] gap-6">
+      <Panel title={editingGalleryId ? "Editar imagen" : "Subir imagen"}>
+        <div className="space-y-4">
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-neutral-300">Título</label>
+            <input
+              value={galleryTitle}
+              onChange={(e) => setGalleryTitle(e.target.value)}
+              placeholder="Título de la imagen"
+              className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none focus:border-primary"
+            />
+          </div>
+          {!editingGalleryId && (
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-neutral-300">Imagen</label>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={(e) => setGalleryPhoto(e.target.files?.[0] || null)}
+                className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white file:mr-4 file:rounded-lg file:border-0 file:bg-primary file:px-4 file:py-2 file:font-semibold file:text-primary-foreground"
+              />
+            </div>
+          )}
+          {galleryPhoto && (
+            <div className="rounded-xl overflow-hidden border border-neutral-700 bg-neutral-950/50 relative h-48">
+              <Image
+                src={URL.createObjectURL(galleryPhoto)}
+                alt="Vista previa"
+                fill
+                className="object-contain bg-neutral-900"
+              />
+            </div>
+          )}
+          <div className="flex gap-3">
+            <button
+              onClick={editingGalleryId ? handleGalleryUpdate : handleGalleryUpload}
+              disabled={busyId === "gallery-upload" || busyId === "gallery-update"}
+              className="rounded-full bg-primary px-5 py-3 font-bold text-primary-foreground disabled:opacity-60"
+            >
+              {busyId === "gallery-upload" || busyId === "gallery-update"
+                ? "Guardando..."
+                : editingGalleryId
+                  ? "Actualizar"
+                  : "Subir imagen"}
+            </button>
+            {editingGalleryId && (
+              <button
+                onClick={() => {
+                  setEditingGalleryId(null);
+                  setGalleryTitle("");
+                  setGalleryPhoto(null);
+                }}
+                className="rounded-full border border-neutral-700 px-5 py-3 font-bold text-neutral-300 hover:bg-white/5"
+              >
+                Cancelar
+              </button>
+            )}
+          </div>
+        </div>
+      </Panel>
+
+      <Panel title="Imágenes de la galería">
+        <div className="space-y-4">
+          {galleryPhotos.length ? galleryPhotos.map((photo) => (
+            <div key={photo.id} className="rounded-2xl border border-neutral-800 bg-neutral-950/70 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="w-24 h-24 rounded-xl overflow-hidden flex-shrink-0 border border-neutral-800 bg-neutral-900 relative">
+                  <Image
+                    src={photo.image_url}
+                    alt={photo.title}
+                    fill
+                    className="object-cover"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-lg font-bold text-white">{photo.title}</h3>
+                  <div className="text-sm text-neutral-400 mt-1">
+                    {new Date(photo.created_at).toLocaleDateString("es-PA", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+                  onClick={() => {
+                    setEditingGalleryId(photo.id);
+                    setGalleryTitle(photo.title);
+                    setGalleryPhoto(null);
+                  }}
+                  className="rounded-full bg-primary px-4 py-2 text-sm font-bold text-primary-foreground"
+                >
+                  Editar
+                </button>
+                <button
+                  onClick={() => handleGalleryDelete(photo.id)}
+                  disabled={busyId === photo.id}
+                  className="rounded-full border border-red-500/30 px-4 py-2 text-sm font-bold text-red-300 hover:bg-red-500/10 disabled:opacity-60"
+                >
+                  {busyId === photo.id ? "Eliminando..." : "Eliminar"}
+                </button>
+              </div>
+            </div>
+          )) : (
+            <EmptyState text="No hay imágenes en la galería." />
+          )}
+        </div>
+      </Panel>
+    </div>
+  );
+
   return (
     <div className="flex min-h-screen w-full bg-neutral-950 text-white">
       <AdminSidebar
@@ -976,6 +1153,7 @@ export default function AdminPage() {
             {activeTab === "packages" && renderPackages()}
             {activeTab === "orders" && renderOrders()}
             {activeTab === "users" && renderUsers()}
+            {activeTab === "gallery" && renderGallery()}
           </>
         )}
       </main>
