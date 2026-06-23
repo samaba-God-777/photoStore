@@ -1,13 +1,16 @@
-const Package = require('../models/Package');
-const path = require('path');
-const fs = require('fs');
+const prisma = require('../lib/prisma');
+const { uploadBuffer, deleteByUrl } = require('../utils/storage');
+
+// El frontend (heredado de Mongo) espera `_id` además de `id`
+const toClient = (pkg) => ({ ...pkg, _id: pkg.id });
+const toClientList = (pkgs) => pkgs.map(toClient);
 
 const parseFeatures = (features) => {
   if (!features) return [];
   if (Array.isArray(features)) return features;
   return features
     .split(/[,\n]+/)
-    .map(f => f.trim())
+    .map((f) => f.trim())
     .filter(Boolean);
 };
 
@@ -17,12 +20,12 @@ const parseFeatures = (features) => {
 const getPackages = async (req, res) => {
   try {
     const { category } = req.query;
-    const filter = { active: true };
+    const where = { active: true };
     if (category && ['exterior', 'studio', 'both'].includes(category)) {
-      filter.category = category;
+      where.category = category;
     }
-    const packages = await Package.find(filter).sort({ price: 1 });
-    res.json({ success: true, count: packages.length, data: packages });
+    const packages = await prisma.package.findMany({ where, orderBy: { price: 'asc' } });
+    res.json({ success: true, count: packages.length, data: toClientList(packages) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Error del servidor.' });
@@ -34,11 +37,11 @@ const getPackages = async (req, res) => {
 // @access  Público
 const getPackage = async (req, res) => {
   try {
-    const pkg = await Package.findById(req.params.id);
+    const pkg = await prisma.package.findUnique({ where: { id: req.params.id } });
     if (!pkg) {
       return res.status(404).json({ success: false, message: 'Paquete no encontrado.' });
     }
-    res.json({ success: true, data: pkg });
+    res.json({ success: true, data: toClient(pkg) });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Error del servidor.' });
   }
@@ -52,21 +55,24 @@ const createPackage = async (req, res) => {
     const { name, price, description, category, features, duration, photos, popular } = req.body;
     const featuresArr = parseFeatures(features);
 
-    const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
+    const imageUrl = req.file ? await uploadBuffer(req.file.buffer, req.file.originalname, 'packages') : null;
 
-    const pkg = await Package.create({
-      name, price: Number(price), description, category,
-      features: featuresArr, duration, photos: Number(photos) || 20,
-      popular: popular === 'true' || popular === true,
-      image: imageUrl
+    const pkg = await prisma.package.create({
+      data: {
+        name,
+        price: Number(price),
+        description,
+        category,
+        features: featuresArr,
+        duration: duration || '1-2 horas',
+        photos: Number(photos) || 20,
+        popular: popular === 'true' || popular === true,
+        image: imageUrl
+      }
     });
 
-    res.status(201).json({ success: true, message: 'Paquete creado exitosamente.', data: pkg });
+    res.status(201).json({ success: true, message: 'Paquete creado exitosamente.', data: toClient(pkg) });
   } catch (err) {
-    if (err.name === 'ValidationError') {
-      const messages = Object.values(err.errors).map(e => e.message);
-      return res.status(400).json({ success: false, message: messages.join('. ') });
-    }
     console.error(err);
     res.status(500).json({ success: false, message: 'Error del servidor.' });
   }
@@ -77,35 +83,30 @@ const createPackage = async (req, res) => {
 // @access  Admin
 const updatePackage = async (req, res) => {
   try {
-    const pkg = await Package.findById(req.params.id);
+    const pkg = await prisma.package.findUnique({ where: { id: req.params.id } });
     if (!pkg) {
       return res.status(404).json({ success: false, message: 'Paquete no encontrado.' });
     }
 
     const { name, price, description, category, features, duration, photos, popular, active } = req.body;
-    const featuresArr = features ? parseFeatures(features) : pkg.features;
+    const data = {};
 
     if (req.file) {
-      // Eliminar imagen anterior si existe
-      if (pkg.image) {
-        const oldPath = path.join(__dirname, '..', pkg.image);
-        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-      }
-      pkg.image = `/uploads/${req.file.filename}`;
+      data.image = await uploadBuffer(req.file.buffer, req.file.originalname, 'packages');
+      await deleteByUrl(pkg.image);
     }
+    if (name) data.name = name;
+    if (price !== undefined) data.price = Number(price);
+    if (description) data.description = description;
+    if (category) data.category = category;
+    if (features) data.features = parseFeatures(features);
+    if (duration) data.duration = duration;
+    if (photos !== undefined) data.photos = Number(photos);
+    if (popular !== undefined) data.popular = popular === 'true' || popular === true;
+    if (active !== undefined) data.active = active === 'true' || active === true;
 
-    pkg.name = name || pkg.name;
-    pkg.price = price !== undefined ? Number(price) : pkg.price;
-    pkg.description = description || pkg.description;
-    pkg.category = category || pkg.category;
-    pkg.features = featuresArr;
-    pkg.duration = duration || pkg.duration;
-    pkg.photos = photos !== undefined ? Number(photos) : pkg.photos;
-    pkg.popular = popular !== undefined ? (popular === 'true' || popular === true) : pkg.popular;
-    pkg.active = active !== undefined ? (active === 'true' || active === true) : pkg.active;
-
-    await pkg.save();
-    res.json({ success: true, message: 'Paquete actualizado.', data: pkg });
+    const updated = await prisma.package.update({ where: { id: pkg.id }, data });
+    res.json({ success: true, message: 'Paquete actualizado.', data: toClient(updated) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Error del servidor.' });
@@ -117,15 +118,12 @@ const updatePackage = async (req, res) => {
 // @access  Admin
 const deletePackage = async (req, res) => {
   try {
-    const pkg = await Package.findByIdAndDelete(req.params.id);
+    const pkg = await prisma.package.findUnique({ where: { id: req.params.id } });
     if (!pkg) {
       return res.status(404).json({ success: false, message: 'Paquete no encontrado.' });
     }
-    // Eliminar imagen si existe
-    if (pkg.image) {
-      const imgPath = path.join(__dirname, '..', pkg.image.replace(/^\//, ''));
-      if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath);
-    }
+    await prisma.package.delete({ where: { id: pkg.id } });
+    await deleteByUrl(pkg.image);
     res.json({ success: true, message: 'Paquete eliminado.' });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Error del servidor.' });
@@ -137,8 +135,8 @@ const deletePackage = async (req, res) => {
 // @access  Admin
 const getAllPackagesAdmin = async (req, res) => {
   try {
-    const packages = await Package.find().sort({ createdAt: -1 });
-    res.json({ success: true, count: packages.length, data: packages });
+    const packages = await prisma.package.findMany({ orderBy: { createdAt: 'desc' } });
+    res.json({ success: true, count: packages.length, data: toClientList(packages) });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Error del servidor.' });
   }

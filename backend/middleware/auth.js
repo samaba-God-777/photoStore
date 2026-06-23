@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const prisma = require('../lib/prisma');
 
 // Middleware para proteger rutas (requiere JWT válido)
 const protect = async (req, res, next) => {
@@ -15,12 +15,14 @@ const protect = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = await User.findById(decoded.id);
-    if (!req.user) {
+    const user = await prisma.user.findUnique({ where: { id: decoded.id } });
+    if (!user) {
       return res.status(401).json({ success: false, message: 'Usuario no encontrado.' });
     }
-    req.user.lastSeen = new Date();
-    await req.user.save({ validateBeforeSave: false });
+    req.user = await prisma.user.update({
+      where: { id: user.id },
+      data: { lastSeen: new Date() },
+    });
     next();
   } catch (err) {
     return res.status(401).json({ success: false, message: 'Token inválido o expirado.' });

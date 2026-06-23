@@ -1,7 +1,9 @@
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const bcrypt = require('bcryptjs');
+const prisma = require('../lib/prisma');
 const sendEmail = require('../utils/email');
+const { uploadBuffer } = require('../utils/storage');
 
 // Generar JWT
 const generateToken = (userId) => {
@@ -9,6 +11,16 @@ const generateToken = (userId) => {
     expiresIn: process.env.JWT_EXPIRES_IN || '7d'
   });
 };
+
+const publicUser = (user) => ({
+  id: user.id,
+  name: user.name,
+  email: user.email,
+  phone: user.phone,
+  role: user.role,
+  avatar: user.avatar,
+  createdAt: user.createdAt
+});
 
 // @desc    Registrar usuario
 // @route   POST /api/auth/register
@@ -20,33 +32,28 @@ const register = async (req, res) => {
     if (!name || !email || !password) {
       return res.status(400).json({ success: false, message: 'Nombre, email y contraseña son requeridos.' });
     }
+    if (password.length < 6) {
+      return res.status(400).json({ success: false, message: 'La contraseña debe tener al menos 6 caracteres.' });
+    }
 
-    const existingUser = await User.findOne({ email });
+    const existingUser = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
     if (existingUser) {
       return res.status(400).json({ success: false, message: 'Ya existe una cuenta con ese email.' });
     }
 
-    const user = await User.create({ name, email, password, phone });
-    const token = generateToken(user._id);
+    const hashedPassword = await bcrypt.hash(password, 12);
+    const user = await prisma.user.create({
+      data: { name, email: email.toLowerCase(), password: hashedPassword, phone }
+    });
+    const token = generateToken(user.id);
 
     res.status(201).json({
       success: true,
       message: 'Cuenta creada exitosamente.',
       token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        role: user.role,
-        avatar: user.avatar
-      }
+      user: publicUser(user)
     });
   } catch (err) {
-    if (err.name === 'ValidationError') {
-      const messages = Object.values(err.errors).map(e => e.message);
-      return res.status(400).json({ success: false, message: messages.join('. ') });
-    }
     console.error(err);
     res.status(500).json({ success: false, message: 'Error del servidor.' });
   }
@@ -63,30 +70,23 @@ const login = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Email y contraseña son requeridos.' });
     }
 
-    const user = await User.findOne({ email }).select('+password');
+    const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
     if (!user) {
       return res.status(401).json({ success: false, message: 'Credenciales inválidas.' });
     }
 
-    const isMatch = await user.comparePassword(password);
+    const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(401).json({ success: false, message: 'Credenciales inválidas.' });
     }
 
-    const token = generateToken(user._id);
+    const token = generateToken(user.id);
 
     res.json({
       success: true,
       message: 'Sesión iniciada correctamente.',
       token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        role: user.role,
-        avatar: user.avatar
-      }
+      user: publicUser(user)
     });
   } catch (err) {
     console.error(err);
@@ -98,18 +98,7 @@ const login = async (req, res) => {
 // @route   GET /api/auth/me
 // @access  Privado
 const getMe = async (req, res) => {
-  res.json({
-    success: true,
-    user: {
-      id: req.user._id,
-      name: req.user.name,
-      email: req.user.email,
-      phone: req.user.phone,
-      role: req.user.role,
-      avatar: req.user.avatar,
-      createdAt: req.user.createdAt
-    }
-  });
+  res.json({ success: true, user: publicUser(req.user) });
 };
 
 // @desc    Olvidé contraseña - enviar token de reseteo
@@ -122,15 +111,17 @@ const forgotPassword = async (req, res) => {
       return res.status(400).json({ success: false, message: 'El email es requerido.' });
     }
 
-    const user = await User.findOne({ email });
+    const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
     if (!user) {
       return res.status(404).json({ success: false, message: 'No existe una cuenta con ese email.' });
     }
 
     const resetToken = crypto.randomBytes(32).toString('hex');
-    user.resetPasswordToken = crypto.createHash('sha256').update(resetToken).digest('hex');
-    user.resetPasswordExpire = Date.now() + 30 * 60 * 1000;
-    await user.save({ validateBeforeSave: false });
+    const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { resetPasswordToken: hashedToken, resetPasswordExpire: new Date(Date.now() + 30 * 60 * 1000) }
+    });
 
     const baseUrl = req.get('host')?.includes('localhost') ? 'http://localhost:3000' : 'https://photostore-2.onrender.com';
     const resetUrl = `${baseUrl}/auth/reset-password/${resetToken}`;
@@ -150,9 +141,10 @@ Este enlace expirará en 30 minutos.`;
         message
       });
     } catch (err) {
-      user.resetPasswordToken = null;
-      user.resetPasswordExpire = null;
-      await user.save({ validateBeforeSave: false });
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { resetPasswordToken: null, resetPasswordExpire: null }
+      });
       return res.status(500).json({ success: false, message: 'Error al enviar el email.' });
     }
 
@@ -174,9 +166,8 @@ const resetPassword = async (req, res) => {
   try {
     const hashedToken = crypto.createHash('sha256').update(req.params.token).digest('hex');
 
-    const user = await User.findOne({
-      resetPasswordToken: hashedToken,
-      resetPasswordExpire: { $gt: Date.now() }
+    const user = await prisma.user.findFirst({
+      where: { resetPasswordToken: hashedToken, resetPasswordExpire: { gt: new Date() } }
     });
 
     if (!user) {
@@ -188,25 +179,19 @@ const resetPassword = async (req, res) => {
       return res.status(400).json({ success: false, message: 'La contraseña debe tener al menos 6 caracteres.' });
     }
 
-    user.password = password;
-    user.resetPasswordToken = null;
-    user.resetPasswordExpire = null;
-    await user.save();
+    const hashedPassword = await bcrypt.hash(password, 12);
+    const updated = await prisma.user.update({
+      where: { id: user.id },
+      data: { password: hashedPassword, resetPasswordToken: null, resetPasswordExpire: null }
+    });
 
-    const token = generateToken(user._id);
+    const token = generateToken(updated.id);
 
     res.json({
       success: true,
       message: 'Contraseña restablecida exitosamente.',
       token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        role: user.role,
-        avatar: user.avatar
-      }
+      user: publicUser(updated)
     });
   } catch (err) {
     console.error(err);
@@ -220,44 +205,31 @@ const resetPassword = async (req, res) => {
 const updateProfile = async (req, res) => {
   try {
     const { name, phone, password } = req.body;
-    const user = req.user;
+    const data = {};
 
     if (name) {
       if (name.length > 50) {
         return res.status(400).json({ success: false, message: 'El nombre no puede tener más de 50 caracteres.' });
       }
-      user.name = name;
+      data.name = name;
     }
-
-    if (phone !== undefined) {
-      user.phone = phone;
-    }
-
+    if (phone !== undefined) data.phone = phone;
     if (password) {
       if (password.length < 6) {
         return res.status(400).json({ success: false, message: 'La contraseña debe tener al menos 6 caracteres.' });
       }
-      user.password = password;
+      data.password = await bcrypt.hash(password, 12);
     }
-
     if (req.file) {
-      user.avatar = `/uploads/${req.file.filename}`;
+      data.avatar = await uploadBuffer(req.file.buffer, req.file.originalname, 'avatars');
     }
 
-    await user.save();
+    const user = await prisma.user.update({ where: { id: req.user.id }, data });
 
     res.json({
       success: true,
       message: 'Perfil actualizado exitosamente.',
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        role: user.role,
-        avatar: user.avatar,
-        createdAt: user.createdAt
-      }
+      user: publicUser(user)
     });
   } catch (err) {
     console.error(err);

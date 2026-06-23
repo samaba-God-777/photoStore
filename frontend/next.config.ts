@@ -13,6 +13,10 @@ const nextConfig: NextConfig = {
         hostname: "localhost",
         port: "5005",
       },
+      {
+        protocol: "https",
+        hostname: "hnntugzgntibfwebuydd.supabase.co",
+      },
     ],
   },
   outputFileTracingRoot: path.resolve(__dirname),

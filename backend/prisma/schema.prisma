@@ -1,0 +1,87 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                  String    @id @default(cuid())
+  name                String
+  email               String    @unique
+  password            String
+  phone               String?
+  role                String    @default("user") // user | admin
+  avatar              String?
+  lastSeen            DateTime?
+  resetPasswordToken  String?
+  resetPasswordExpire DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  orders Order[]
+
+  @@map("users")
+}
+
+model Package {
+  id          String   @id @default(cuid())
+  name        String
+  price       Float
+  description String
+  category    String // exterior | studio | both
+  image       String?
+  features    Json     @default("[]")
+  duration    String   @default("1-2 horas")
+  photos      Int      @default(20)
+  active      Boolean  @default(true)
+  popular     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  orderItems OrderItem[]
+
+  @@map("packages")
+}
+
+model Order {
+  id            String    @id @default(cuid())
+  orderNumber   String    @unique
+  userId        String
+  customerName  String?
+  customerEmail String?
+  customerPhone String?
+  total         Float
+  paymentMethod String // yappy | cash
+  status        String    @default("pending") // pending | confirmed | in_progress | completed | cancelled
+  yappyPhone    String?
+  notes         String?
+  confirmedAt   DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items OrderItem[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  packageId String
+  name      String
+  price     Float
+  quantity  Int     @default(1)
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  package Package @relation(fields: [packageId], references: [id])
+
+  @@map("order_items")
+}

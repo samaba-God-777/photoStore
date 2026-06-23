@@ -1,5 +1,29 @@
-const Order = require('../models/Order');
-const Package = require('../models/Package');
+const prisma = require('../lib/prisma');
+
+const generateOrderNumber = () => {
+  const now = Date.now();
+  const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+  return `PS-${now.toString().slice(-6)}${random}`;
+};
+
+const ORDER_INCLUDE = { items: { include: { package: { select: { name: true, image: true, category: true } } } } };
+const ORDER_INCLUDE_ADMIN = {
+  user: { select: { name: true, email: true, phone: true } },
+  ...ORDER_INCLUDE
+};
+
+// El frontend (heredado de Mongo) espera `_id` y `order.packages` en vez de `items`
+const toClient = (order) => ({
+  ...order,
+  _id: order.id,
+  packages: (order.items || []).map((item) => ({
+    name: item.name,
+    price: item.price,
+    quantity: item.quantity,
+    package: item.package ? { ...item.package, _id: item.packageId } : undefined
+  }))
+});
+const toClientList = (orders) => orders.map(toClient);
 
 // @desc    Crear orden
 // @route   POST /api/orders
@@ -18,49 +42,36 @@ const createOrder = async (req, res) => {
       return res.status(400).json({ success: false, message: 'El número de Yappy es requerido.' });
     }
 
-    // Verificar y construir los items de la orden
     const orderItems = [];
     let total = 0;
 
     for (const item of pkgItems) {
-      let pkg;
-      try {
-        pkg = await Package.findById(item.packageId);
-      } catch {
-        return res.status(400).json({ success: false, message: `ID de paquete inválido.` });
-      }
+      const pkg = await prisma.package.findUnique({ where: { id: item.packageId } });
       if (!pkg || !pkg.active) {
-        return res.status(400).json({ success: false, message: `Paquete no encontrado o no disponible.` });
+        return res.status(400).json({ success: false, message: 'Paquete no encontrado o no disponible.' });
       }
       const quantity = item.quantity || 1;
-      orderItems.push({
-        package: pkg._id,
-        name: pkg.name,
-        price: pkg.price,
-        quantity
-      });
+      orderItems.push({ packageId: pkg.id, name: pkg.name, price: pkg.price, quantity });
       total += pkg.price * quantity;
     }
 
-    const order = await Order.create({
-      user: req.user._id,
-      customerName: fullName || req.user.name,
-      customerEmail: email || req.user.email,
-      customerPhone: phone || req.user.phone,
-      packages: orderItems,
-      total,
-      paymentMethod,
-      yappyPhone: paymentMethod === 'yappy' ? yappyPhone : null,
-      notes
+    const order = await prisma.order.create({
+      data: {
+        orderNumber: generateOrderNumber(),
+        userId: req.user.id,
+        customerName: fullName || req.user.name,
+        customerEmail: email || req.user.email,
+        customerPhone: phone || req.user.phone,
+        total,
+        paymentMethod,
+        yappyPhone: paymentMethod === 'yappy' ? yappyPhone : null,
+        notes,
+        items: { create: orderItems }
+      },
+      include: ORDER_INCLUDE
     });
 
-    await order.populate('packages.package', 'name image category');
-
-    res.status(201).json({
-      success: true,
-      message: 'Orden creada exitosamente.',
-      data: order
-    });
+    res.status(201).json({ success: true, message: 'Orden creada exitosamente.', data: toClient(order) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Error del servidor.' });
@@ -72,11 +83,12 @@ const createOrder = async (req, res) => {
 // @access  Privado
 const getMyOrders = async (req, res) => {
   try {
-    const orders = await Order.find({ user: req.user._id })
-      .populate('packages.package', 'name image category')
-      .sort({ createdAt: -1 });
-
-    res.json({ success: true, count: orders.length, data: orders });
+    const orders = await prisma.order.findMany({
+      where: { userId: req.user.id },
+      include: ORDER_INCLUDE,
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json({ success: true, count: orders.length, data: toClientList(orders) });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Error del servidor.' });
   }
@@ -88,13 +100,13 @@ const getMyOrders = async (req, res) => {
 const getAllOrders = async (req, res) => {
   try {
     const { status } = req.query;
-    const filter = status ? { status } : {};
-    const orders = await Order.find(filter)
-      .populate('user', 'name email phone')
-      .populate('packages.package', 'name image category')
-      .sort({ createdAt: -1 });
-
-    res.json({ success: true, count: orders.length, data: orders });
+    const where = status ? { status } : {};
+    const orders = await prisma.order.findMany({
+      where,
+      include: ORDER_INCLUDE_ADMIN,
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json({ success: true, count: orders.length, data: toClientList(orders) });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Error del servidor.' });
   }
@@ -112,17 +124,17 @@ const updateOrderStatus = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Estado inválido.' });
     }
 
-    const order = await Order.findById(req.params.id);
+    const order = await prisma.order.findUnique({ where: { id: req.params.id } });
     if (!order) {
       return res.status(404).json({ success: false, message: 'Orden no encontrada.' });
     }
 
-    order.status = status;
-    if (status === 'confirmed') order.confirmedAt = new Date();
-    if (status === 'completed') order.completedAt = new Date();
+    const data = { status };
+    if (status === 'confirmed') data.confirmedAt = new Date();
+    if (status === 'completed') data.completedAt = new Date();
 
-    await order.save();
-    res.json({ success: true, message: 'Estado actualizado.', data: order });
+    const updated = await prisma.order.update({ where: { id: order.id }, data, include: ORDER_INCLUDE });
+    res.json({ success: true, message: 'Estado actualizado.', data: toClient(updated) });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Error del servidor.' });
   }
@@ -133,10 +145,11 @@ const updateOrderStatus = async (req, res) => {
 // @access  Admin
 const deleteOrder = async (req, res) => {
   try {
-    const order = await Order.findByIdAndDelete(req.params.id);
+    const order = await prisma.order.findUnique({ where: { id: req.params.id } });
     if (!order) {
       return res.status(404).json({ success: false, message: 'Orden no encontrada.' });
     }
+    await prisma.order.delete({ where: { id: order.id } });
     res.json({ success: true, message: 'Orden eliminada.' });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Error del servidor.' });

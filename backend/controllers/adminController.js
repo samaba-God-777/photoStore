@@ -1,13 +1,11 @@
-const User = require('../models/User');
-const Order = require('../models/Order');
-const Package = require('../models/Package');
+const prisma = require('../lib/prisma');
 
 const ONLINE_WINDOW_MINUTES = 5;
 
 const onlineSince = () => new Date(Date.now() - ONLINE_WINDOW_MINUTES * 60 * 1000);
 
 const mapOnlineState = (user) => ({
-  _id: user._id,
+  _id: user.id,
   name: user.name,
   email: user.email,
   role: user.role,
@@ -20,18 +18,20 @@ const mapOnlineState = (user) => ({
 const getDashboardSummary = async (req, res) => {
   try {
     const [usersCount, packagesCount, ordersCount, pendingOrdersCount, onlineUsersCount] = await Promise.all([
-      User.countDocuments(),
-      Package.countDocuments(),
-      Order.countDocuments(),
-      Order.countDocuments({ status: 'pending' }),
-      User.countDocuments({ lastSeen: { $gte: onlineSince() } }),
+      prisma.user.count(),
+      prisma.package.count(),
+      prisma.order.count(),
+      prisma.order.count({ where: { status: 'pending' } }),
+      prisma.user.count({ where: { lastSeen: { gte: onlineSince() } } }),
     ]);
 
-    const orders = await Order.find()
-      .populate('user', 'name email')
-      .populate('packages.package', 'name category')
-      .sort({ createdAt: -1 })
-      .lean();
+    const orders = await prisma.order.findMany({
+      include: {
+        user: { select: { name: true, email: true } },
+        items: { include: { package: { select: { name: true, category: true } } } }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
 
     const recentOrders = orders.slice(0, 5);
 
@@ -46,33 +46,20 @@ const getDashboardSummary = async (req, res) => {
 
     for (const order of orders) {
       totalRevenue += order.total || 0;
-      for (const line of order.packages || []) {
+      for (const line of order.items || []) {
         const pkg = line.package || {};
         const name = line.name || pkg.name || 'Paquete';
         const category = pkg.category || 'both';
         const quantity = line.quantity || 1;
         const lineRevenue = (line.price || 0) * quantity;
 
-        const existingPackage = packageStatsMap.get(name) || {
-          name,
-          category,
-          quantity: 0,
-          revenue: 0,
-          orders: 0,
-        };
-
+        const existingPackage = packageStatsMap.get(name) || { name, category, quantity: 0, revenue: 0, orders: 0 };
         existingPackage.quantity += quantity;
         existingPackage.revenue += lineRevenue;
         existingPackage.orders += 1;
         packageStatsMap.set(name, existingPackage);
 
-        const existingCategory = categoryStatsMap.get(category) || {
-          category,
-          revenue: 0,
-          quantity: 0,
-          orders: 0,
-        };
-
+        const existingCategory = categoryStatsMap.get(category) || { category, revenue: 0, quantity: 0, orders: 0 };
         existingCategory.revenue += lineRevenue;
         existingCategory.quantity += quantity;
         existingCategory.orders += 1;
@@ -80,10 +67,7 @@ const getDashboardSummary = async (req, res) => {
       }
     }
 
-    const topPackages = Array.from(packageStatsMap.values())
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 6);
-
+    const topPackages = Array.from(packageStatsMap.values()).sort((a, b) => b.revenue - a.revenue).slice(0, 6);
     const serviceCategories = Array.from(categoryStatsMap.values()).sort((a, b) => b.revenue - a.revenue);
 
     res.json({
@@ -110,12 +94,8 @@ const getDashboardSummary = async (req, res) => {
 
 const getUsers = async (req, res) => {
   try {
-    const users = await User.find().sort({ createdAt: -1 });
-    res.json({
-      success: true,
-      count: users.length,
-      data: users.map(mapOnlineState),
-    });
+    const users = await prisma.user.findMany({ orderBy: { createdAt: 'desc' } });
+    res.json({ success: true, count: users.length, data: users.map(mapOnlineState) });
   } catch (err) {
     console.error('Error en getUsers:', err.message);
     res.status(500).json({ success: false, message: 'Error del servidor.' });
@@ -124,16 +104,16 @@ const getUsers = async (req, res) => {
 
 const deleteUser = async (req, res) => {
   try {
-    if (req.user._id.toString() === req.params.id) {
+    if (req.user.id === req.params.id) {
       return res.status(400).json({ success: false, message: 'No puedes eliminar tu propia cuenta.' });
     }
 
-    const user = await User.findByIdAndDelete(req.params.id);
+    const user = await prisma.user.findUnique({ where: { id: req.params.id } });
     if (!user) {
       return res.status(404).json({ success: false, message: 'Usuario no encontrado.' });
     }
 
-    await Order.deleteMany({ user: user._id });
+    await prisma.user.delete({ where: { id: user.id } }); // onDelete: Cascade borra sus orders
 
     res.json({ success: true, message: 'Usuario eliminado.' });
   } catch (err) {
@@ -149,19 +129,14 @@ const updateUserRole = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Rol inválido.' });
     }
 
-    const user = await User.findById(req.params.id);
+    const user = await prisma.user.findUnique({ where: { id: req.params.id } });
     if (!user) {
       return res.status(404).json({ success: false, message: 'Usuario no encontrado.' });
     }
 
-    user.role = role;
-    await user.save();
+    const updated = await prisma.user.update({ where: { id: user.id }, data: { role } });
 
-    res.json({
-      success: true,
-      message: 'Rol actualizado.',
-      data: mapOnlineState(user),
-    });
+    res.json({ success: true, message: 'Rol actualizado.', data: mapOnlineState(updated) });
   } catch (err) {
     console.error('Error en updateUserRole:', err.message);
     res.status(500).json({ success: false, message: 'Error del servidor.' });
@@ -170,14 +145,11 @@ const updateUserRole = async (req, res) => {
 
 const getOnlineUsers = async (req, res) => {
   try {
-    const users = await User.find({ lastSeen: { $gte: onlineSince() } })
-      .sort({ lastSeen: -1 });
-
-    res.json({
-      success: true,
-      count: users.length,
-      data: users.map(mapOnlineState),
+    const users = await prisma.user.findMany({
+      where: { lastSeen: { gte: onlineSince() } },
+      orderBy: { lastSeen: 'desc' }
     });
+    res.json({ success: true, count: users.length, data: users.map(mapOnlineState) });
   } catch (err) {
     console.error('Error en getOnlineUsers:', err.message);
     res.status(500).json({ success: false, message: 'Error del servidor.' });
