@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 
 export interface GalleryPhoto {
   id: string;
@@ -14,7 +14,7 @@ export interface GalleryPhotoInsert {
 
 const BUCKET_NAME = "gallery";
 
-const ensureBucket = async () => {
+const ensureBucket = async (supabase: ReturnType<typeof getSupabase>) => {
   const { data: buckets } = await supabase.storage.listBuckets();
   const exists = buckets?.some((b) => b.name === BUCKET_NAME);
   if (!exists) {
@@ -28,6 +28,7 @@ const ensureBucket = async () => {
 
 export const galleryService = {
   async getAll(): Promise<GalleryPhoto[]> {
+    const supabase = getSupabase();
     const { data, error } = await supabase
       .from("gallery_photos")
       .select("*")
@@ -38,7 +39,8 @@ export const galleryService = {
   },
 
   async upload(file: File, title: string): Promise<GalleryPhoto> {
-    await ensureBucket();
+    const supabase = getSupabase();
+    await ensureBucket(supabase);
 
     const fileExt = file.name.split(".").pop();
     const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${fileExt}`;
@@ -65,6 +67,7 @@ export const galleryService = {
   },
 
   async update(id: string, title: string): Promise<GalleryPhoto> {
+    const supabase = getSupabase();
     const { data, error } = await supabase
       .from("gallery_photos")
       .update({ title })
@@ -77,6 +80,7 @@ export const galleryService = {
   },
 
   async remove(id: string): Promise<void> {
+    const supabase = getSupabase();
     const { data: photo, error: fetchError } = await supabase
       .from("gallery_photos")
       .select("image_url")
