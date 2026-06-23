@@ -10,6 +10,7 @@ import { SparklesCore } from '@/components/ui/sparkles';
 import { apiGetPackages } from '@/lib/api';
 import { addToast } from '@/components/toast';
 import { Package } from '@/lib/helpers';
+import { useGalleryPhotos } from '@/hooks/useGalleryPhotos';
 
 const FALLBACK_PACKAGES: Package[] = [
   {
@@ -79,6 +80,7 @@ export default function HomePage() {
   const [filteredPackages, setFilteredPackages] = useState<Package[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [loading, setLoading] = useState(true);
+  const { photos: galleryPhotos, loading: galleryLoading } = useGalleryPhotos();
 
   useEffect(() => {
     const loadPackages = async () => {
@@ -192,6 +194,46 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* ===== GALERÍA DE TRABAJOS ===== */}
+      {!galleryLoading && galleryPhotos.length > 0 && (
+        <section className="container mx-auto px-6 py-16">
+          <div className="text-center mb-12">
+            <div className="inline-block px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-bold uppercase mb-4">
+              Nuestro Trabajo
+            </div>
+            <h2 className="text-4xl md:text-5xl font-bold mb-4">Galería de Trabajos</h2>
+            <p className="text-neutral-400 max-w-2xl mx-auto">
+              Algunas de nuestras sesiones más recientes.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {galleryPhotos.slice(0, 8).map((photo) => (
+              <div key={photo.id} className="relative aspect-square rounded-lg overflow-hidden group">
+                <Image
+                  src={photo.image_url}
+                  alt={photo.title || 'Trabajo de fotografía'}
+                  fill
+                  className="object-cover transition-transform duration-300 group-hover:scale-110"
+                />
+                {photo.title && (
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent flex items-end p-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="text-white text-sm font-bold">{photo.title}</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="text-center mt-8">
+            <Link
+              href="/galeria/trabajos-recientes"
+              className="inline-block px-6 py-3 bg-neutral-800 hover:bg-neutral-700 text-white rounded-full font-bold transition"
+            >
+              Ver galería completa
+            </Link>
+          </div>
+        </section>
+      )}
 
       {/* ===== PAQUETES ===== */}
       <section id="paquetes" className="container mx-auto px-6">
