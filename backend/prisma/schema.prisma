@@ -72,6 +72,15 @@ model Order {
   @@map("orders")
 }
 
+model GalleryPhoto {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title     String   @default("")
+  imageUrl  String   @map("image_url")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("gallery_photos")
+}
+
 model OrderItem {
   id        String  @id @default(cuid())
   orderId   String

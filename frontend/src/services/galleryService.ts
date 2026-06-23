@@ -1,4 +1,5 @@
 import { getSupabase } from "@/lib/supabase";
+import { BASE_URL, getToken } from "@/lib/api";
 
 export interface GalleryPhoto {
   id: string;
@@ -7,26 +8,19 @@ export interface GalleryPhoto {
   created_at: string;
 }
 
-export interface GalleryPhotoInsert {
-  title: string;
-  image_url: string;
-}
+const authHeaders = (): Record<string, string> => {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
 
-const BUCKET_NAME = "gallery";
-
-const ensureBucket = async (supabase: ReturnType<typeof getSupabase>) => {
-  const { data: buckets } = await supabase.storage.listBuckets();
-  const exists = buckets?.some((b) => b.name === BUCKET_NAME);
-  if (!exists) {
-    await supabase.storage.createBucket(BUCKET_NAME, {
-      public: true,
-      allowedMimeTypes: ["image/jpeg", "image/png", "image/webp"],
-      fileSizeLimit: 5 * 1024 * 1024,
-    });
-  }
+const handleRes = async (res: Response) => {
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || "Error del servidor.");
+  return data;
 };
 
 export const galleryService = {
+  // Lectura pública: directo a Supabase (RLS permite SELECT a cualquiera)
   async getAll(): Promise<GalleryPhoto[]> {
     const supabase = getSupabase();
     const { data, error } = await supabase
@@ -38,71 +32,37 @@ export const galleryService = {
     return data || [];
   },
 
+  // Escrituras: vía backend (usa la service_role key del servidor, evita el
+  // bloqueo de RLS que ocurre porque esta app no usa Supabase Auth)
   async upload(file: File, title: string): Promise<GalleryPhoto> {
-    const supabase = getSupabase();
-    await ensureBucket(supabase);
+    const formData = new FormData();
+    formData.append("image", file);
+    formData.append("title", title);
 
-    const fileExt = file.name.split(".").pop();
-    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${fileExt}`;
-    const filePath = `gallery/${fileName}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from(BUCKET_NAME)
-      .upload(filePath, file);
-
-    if (uploadError) throw uploadError;
-
-    const { data: urlData } = supabase.storage
-      .from(BUCKET_NAME)
-      .getPublicUrl(filePath);
-
-    const { data, error } = await supabase
-      .from("gallery_photos")
-      .insert({ title, image_url: urlData.publicUrl })
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    const res = await fetch(`${BASE_URL}/gallery`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: formData,
+    });
+    const json = await handleRes(res);
+    return json.data;
   },
 
   async update(id: string, title: string): Promise<GalleryPhoto> {
-    const supabase = getSupabase();
-    const { data, error } = await supabase
-      .from("gallery_photos")
-      .update({ title })
-      .eq("id", id)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
+    const res = await fetch(`${BASE_URL}/gallery/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ title }),
+    });
+    const json = await handleRes(res);
+    return json.data;
   },
 
   async remove(id: string): Promise<void> {
-    const supabase = getSupabase();
-    const { data: photo, error: fetchError } = await supabase
-      .from("gallery_photos")
-      .select("image_url")
-      .eq("id", id)
-      .single();
-
-    if (fetchError) throw fetchError;
-
-    if (photo?.image_url) {
-      const urlParts = photo.image_url.split("/");
-      const bucketIndex = urlParts.indexOf(BUCKET_NAME);
-      if (bucketIndex !== -1) {
-        const filePath = urlParts.slice(bucketIndex + 1).join("/");
-        await supabase.storage.from(BUCKET_NAME).remove([filePath]);
-      }
-    }
-
-    const { error } = await supabase
-      .from("gallery_photos")
-      .delete()
-      .eq("id", id);
-
-    if (error) throw error;
+    const res = await fetch(`${BASE_URL}/gallery/${id}`, {
+      method: "DELETE",
+      headers: authHeaders(),
+    });
+    await handleRes(res);
   },
 };
