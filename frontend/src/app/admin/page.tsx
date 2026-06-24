@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { galleryService, type GalleryPhoto } from "@/services/galleryService";
+import { settingsService } from "@/services/settingsService";
 import {
   apiCreatePackageForm,
   apiDeleteOrder,
@@ -156,17 +157,20 @@ export default function AdminPage() {
   const [galleryPhoto, setGalleryPhoto] = useState<File | null>(null);
   const [galleryTitle, setGalleryTitle] = useState("");
   const [editingGalleryId, setEditingGalleryId] = useState<string | null>(null);
+  const [aboutImageUrl, setAboutImageUrl] = useState<string | null>(null);
+  const [aboutImageFile, setAboutImageFile] = useState<File | null>(null);
 
   const loadData = async () => {
     setLoading(true);
     setLoadWarning(null);
     try {
-      const [packagesRes, ordersRes, usersRes, onlineRes, galleryRes] = await Promise.allSettled([
+      const [packagesRes, ordersRes, usersRes, onlineRes, galleryRes, aboutImageRes] = await Promise.allSettled([
         apiGetAdminPackages(),
         apiGetOrders(),
         apiGetAdminUsers(),
         apiGetOnlineUsers(),
         galleryService.getAll(),
+        settingsService.get("about_image"),
       ]);
 
       const packagesData = packagesRes.status === "fulfilled" ? (packagesRes.value.data || packagesRes.value) : [];
@@ -180,6 +184,7 @@ export default function AdminPage() {
       setUsers(usersData);
       setOnlineUsers(onlineData);
       setGalleryPhotos(galleryData);
+      setAboutImageUrl(aboutImageRes.status === "fulfilled" ? aboutImageRes.value : null);
 
       const failed = [packagesRes, ordersRes, usersRes, onlineRes, galleryRes].some((item) => item.status === "rejected");
       if (failed) {
@@ -348,6 +353,24 @@ export default function AdminPage() {
       await loadData();
     } catch (error) {
       showToast(error instanceof Error ? error.message : "No se pudo eliminar el usuario", "error");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleAboutImageUpload = async () => {
+    if (!aboutImageFile) {
+      showToast("Selecciona una imagen", "warning");
+      return;
+    }
+    setBusyId("about-image-upload");
+    try {
+      const url = await settingsService.uploadImage("about_image", aboutImageFile);
+      setAboutImageUrl(url);
+      setAboutImageFile(null);
+      showToast("Imagen de 'Nuestra Historia' actualizada", "success");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "No se pudo subir la imagen", "error");
     } finally {
       setBusyId(null);
     }
@@ -941,7 +964,53 @@ export default function AdminPage() {
   );
 
   const renderGallery = () => (
-    <div className="grid xl:grid-cols-[0.9fr_1.1fr] gap-6">
+    <div className="space-y-6">
+      <Panel title="Imagen de 'Nuestra Historia'">
+        <p className="mb-4 text-sm text-neutral-400">
+          Esta imagen aparece en la sección &quot;Arte y pasión detrás de cada imagen&quot; de la página de inicio.
+        </p>
+        <div className="grid sm:grid-cols-[200px_1fr] gap-4 items-start">
+          <div className="relative h-40 w-full overflow-hidden rounded-xl border border-neutral-700 bg-neutral-950/50">
+            {(aboutImageFile || aboutImageUrl) ? (
+              <Image
+                src={aboutImageFile ? URL.createObjectURL(aboutImageFile) : aboutImageUrl!}
+                alt="Imagen de Nuestra Historia"
+                fill
+                className="object-cover"
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center text-xs text-neutral-500">Sin imagen personalizada (se usa la predeterminada)</div>
+            )}
+          </div>
+          <div className="space-y-3">
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(e) => setAboutImageFile(e.target.files?.[0] || null)}
+              className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white file:mr-4 file:rounded-lg file:border-0 file:bg-primary file:px-4 file:py-2 file:font-semibold file:text-primary-foreground"
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={handleAboutImageUpload}
+                disabled={!aboutImageFile || busyId === "about-image-upload"}
+                className="rounded-full bg-primary px-5 py-3 font-bold text-primary-foreground disabled:opacity-60"
+              >
+                {busyId === "about-image-upload" ? "Subiendo..." : "Guardar imagen"}
+              </button>
+              {aboutImageFile && (
+                <button
+                  onClick={() => setAboutImageFile(null)}
+                  className="rounded-full border border-neutral-700 px-5 py-3 font-bold text-neutral-300 hover:bg-white/5"
+                >
+                  Cancelar
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </Panel>
+
+      <div className="grid xl:grid-cols-[0.9fr_1.1fr] gap-6">
       <Panel title={editingGalleryId ? "Editar imagen" : "Subir imagen"}>
         <div className="space-y-4">
           <div>
@@ -1051,6 +1120,7 @@ export default function AdminPage() {
           )}
         </div>
       </Panel>
+      </div>
     </div>
   );
 

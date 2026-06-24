@@ -72,6 +72,14 @@ model Order {
   @@map("orders")
 }
 
+model SiteSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("site_settings")
+}
+
 model GalleryPhoto {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   title     String   @default("")

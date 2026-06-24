@@ -12,8 +12,12 @@ import { addToast } from '@/components/toast';
 import { Package } from '@/lib/helpers';
 import { useGalleryPhotos } from '@/hooks/useGalleryPhotos';
 import { GalleryPhoto } from '@/services/galleryService';
+import { settingsService } from '@/services/settingsService';
 import { PackageCardSkeleton, GalleryPhotoSkeleton } from '@/components/ui/skeleton';
 import { Leaf, Clapperboard, Sparkles, Palette, MapPin, Smartphone, Mail, Clock, X } from 'lucide-react';
+
+const DEFAULT_ABOUT_IMAGE =
+  'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&q=80&w=600';
 
 const FALLBACK_PACKAGES: Package[] = [
   {
@@ -85,6 +89,16 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const { photos: galleryPhotos, loading: galleryLoading } = useGalleryPhotos();
   const [lightboxPhoto, setLightboxPhoto] = useState<GalleryPhoto | null>(null);
+  const [aboutImage, setAboutImage] = useState(DEFAULT_ABOUT_IMAGE);
+
+  useEffect(() => {
+    settingsService
+      .get('about_image')
+      .then((url) => {
+        if (url) setAboutImage(url);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const loadPackages = async () => {
@@ -393,7 +407,7 @@ export default function HomePage() {
           </div>
           <div className="relative">
             <Image
-              src="https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&q=80&w=600"
+              src={aboutImage}
               alt="Estudio"
               width={600}
               height={384}
