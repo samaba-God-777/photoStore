@@ -13,6 +13,7 @@ import { Package } from '@/lib/helpers';
 import { useGalleryPhotos } from '@/hooks/useGalleryPhotos';
 import { GalleryPhoto } from '@/services/galleryService';
 import { settingsService } from '@/services/settingsService';
+import ImgStack from '@/components/ui/image-stack';
 import { PackageCardSkeleton, GalleryPhotoSkeleton } from '@/components/ui/skeleton';
 import { Leaf, Clapperboard, Sparkles, Palette, MapPin, Smartphone, Mail, Clock, X } from 'lucide-react';
 
@@ -384,6 +385,9 @@ export default function HomePage() {
             <h2 className="text-4xl md:text-5xl font-bold mb-6">
               Arte y pasión detrás de cada imagen
             </h2>
+            <p className="text-neutral-300 mb-4 leading-relaxed">
+              Bienvenido a PhotoStore, donde la creatividad y la estrategia se combinan para dar vida a tu visión. Nos apasiona transformar ideas en experiencias visuales memorables, con identidad propia y una presentación cuidada en cada detalle.
+            </p>
             <p className="text-neutral-400 mb-4 leading-relaxed">
               Somos un equipo de fotógrafos profesionales con más de 8 años de experiencia capturando los momentos más importantes de la vida. Nos especializamos en fotografía de retratos, quinceañeras, corporativa y lifestyle.
             </p>
@@ -405,15 +409,17 @@ export default function HomePage() {
               </div>
             </div>
           </div>
-          <div className="relative">
-            <Image
-              src={aboutImage}
-              alt="Estudio"
-              width={600}
-              height={384}
-              className="rounded-lg w-full h-96 object-cover"
+          <div className="relative flex justify-center">
+            <ImgStack
+              images={[
+                aboutImage,
+                'https://images.unsplash.com/photo-1554048612-b6a482bc67e5?auto=format&fit=crop&q=80&w=600',
+                'https://images.unsplash.com/photo-1502920917128-1aa500764cbd?auto=format&fit=crop&q=80&w=600',
+                'https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?auto=format&fit=crop&q=80&w=600',
+                'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=600',
+              ]}
             />
-            <div className="absolute bottom-0 left-0 translate-y-8 -translate-x-8 bg-primary text-primary-foreground p-4 rounded-lg font-bold">
+            <div className="absolute bottom-4 left-4 bg-primary text-primary-foreground p-4 rounded-lg font-bold z-[60]">
               <div className="text-2xl">98%</div>
               <div className="text-xs">Satisfacción</div>
             </div>
