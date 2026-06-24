@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { PackageCard } from '@/components/package-card';
 import { CompanyPolicyCard } from '@/components/company-policy-card';
+import { TestimonialShowcase } from '@/components/testimonial-showcase';
 import { SiteSections } from '@/components/site-sections';
 import { SparklesCore } from '@/components/ui/sparkles';
 import { apiGetPackages } from '@/lib/api';
@@ -374,6 +375,8 @@ export default function HomePage() {
           <CompanyPolicyCard />
         </div>
       </section>
+
+      <TestimonialShowcase />
 
       {/* ===== NOSOTROS ===== */}
       <section id="nosotros" className="container mx-auto px-6">
