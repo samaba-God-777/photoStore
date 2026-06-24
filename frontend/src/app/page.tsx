@@ -11,6 +11,9 @@ import { apiGetPackages } from '@/lib/api';
 import { addToast } from '@/components/toast';
 import { Package } from '@/lib/helpers';
 import { useGalleryPhotos } from '@/hooks/useGalleryPhotos';
+import { GalleryPhoto } from '@/services/galleryService';
+import { PackageCardSkeleton, GalleryPhotoSkeleton } from '@/components/ui/skeleton';
+import { Leaf, Clapperboard, Sparkles, Palette, MapPin, Smartphone, Mail, Clock, X } from 'lucide-react';
 
 const FALLBACK_PACKAGES: Package[] = [
   {
@@ -81,6 +84,7 @@ export default function HomePage() {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [loading, setLoading] = useState(true);
   const { photos: galleryPhotos, loading: galleryLoading } = useGalleryPhotos();
+  const [lightboxPhoto, setLightboxPhoto] = useState<GalleryPhoto | null>(null);
 
   useEffect(() => {
     const loadPackages = async () => {
@@ -180,13 +184,13 @@ export default function HomePage() {
         <div className="container mx-auto px-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8">
             {[
-              { emoji: '🌿', title: 'Exteriores', desc: 'Luz natural, locaciones únicas' },
-              { emoji: '🎬', title: 'Estudio', desc: 'Fondos profesionales' },
-              { emoji: '✨', title: 'Combinaciones', desc: 'Lo mejor de ambos mundos' },
-              { emoji: '🎨', title: 'Edición Premium', desc: 'Retoque profesional' },
+              { Icon: Leaf, title: 'Exteriores', desc: 'Luz natural, locaciones únicas' },
+              { Icon: Clapperboard, title: 'Estudio', desc: 'Fondos profesionales' },
+              { Icon: Sparkles, title: 'Combinaciones', desc: 'Lo mejor de ambos mundos' },
+              { Icon: Palette, title: 'Edición Premium', desc: 'Retoque profesional' },
             ].map((cat, i) => (
               <div key={i} className="text-center p-4">
-                <div className="text-3xl md:text-4xl mb-2">{cat.emoji}</div>
+                <cat.Icon className="mx-auto mb-2 text-primary" size={32} />
                 <h3 className="font-bold text-sm md:text-base mb-1">{cat.title}</h3>
                 <p className="text-xs md:text-sm text-neutral-400">{cat.desc}</p>
               </div>
@@ -196,7 +200,7 @@ export default function HomePage() {
       </section>
 
       {/* ===== GALERÍA DE TRABAJOS ===== */}
-      {!galleryLoading && galleryPhotos.length > 0 && (
+      {(galleryLoading || galleryPhotos.length > 0) && (
         <section className="container mx-auto px-6 py-16">
           <div className="text-center mb-12">
             <div className="inline-block px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-bold uppercase mb-4">
@@ -208,31 +212,69 @@ export default function HomePage() {
             </p>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {galleryPhotos.slice(0, 8).map((photo) => (
-              <div key={photo.id} className="relative aspect-square rounded-lg overflow-hidden group">
-                <Image
-                  src={photo.image_url}
-                  alt={photo.title || 'Trabajo de fotografía'}
-                  fill
-                  className="object-cover transition-transform duration-300 group-hover:scale-110"
-                />
-                {photo.title && (
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent flex items-end p-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <span className="text-white text-sm font-bold">{photo.title}</span>
-                  </div>
-                )}
-              </div>
-            ))}
+            {galleryLoading ? (
+              Array.from({ length: 8 }).map((_, i) => <GalleryPhotoSkeleton key={i} />)
+            ) : (
+              galleryPhotos.slice(0, 8).map((photo) => (
+                <button
+                  key={photo.id}
+                  onClick={() => setLightboxPhoto(photo)}
+                  className="relative aspect-square rounded-lg overflow-hidden group cursor-zoom-in"
+                >
+                  <Image
+                    src={photo.image_url}
+                    alt={photo.title || 'Trabajo de fotografía'}
+                    fill
+                    className="object-cover transition-transform duration-300 group-hover:scale-110"
+                  />
+                  {photo.title && (
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent flex items-end p-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <span className="text-white text-sm font-bold">{photo.title}</span>
+                    </div>
+                  )}
+                </button>
+              ))
+            )}
           </div>
-          <div className="text-center mt-8">
-            <Link
-              href="/galeria/trabajos-recientes"
-              className="inline-block px-6 py-3 bg-neutral-800 hover:bg-neutral-700 text-white rounded-full font-bold transition"
-            >
-              Ver galería completa
-            </Link>
-          </div>
+          {!galleryLoading && (
+            <div className="text-center mt-8">
+              <Link
+                href="/galeria/trabajos-recientes"
+                className="inline-block px-6 py-3 bg-neutral-800 hover:bg-neutral-700 text-white rounded-full font-bold transition"
+              >
+                Ver galería completa
+              </Link>
+            </div>
+          )}
         </section>
+      )}
+
+      {lightboxPhoto && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center p-4 cursor-zoom-out"
+          onClick={() => setLightboxPhoto(null)}
+        >
+          <button
+            onClick={() => setLightboxPhoto(null)}
+            className="absolute top-4 right-4 text-white/80 hover:text-white p-2 rounded-full bg-white/10 hover:bg-white/20 transition"
+            aria-label="Cerrar"
+          >
+            <X size={24} />
+          </button>
+          <div className="relative w-full max-w-4xl max-h-[85vh] aspect-auto">
+            <Image
+              src={lightboxPhoto.image_url}
+              alt={lightboxPhoto.title || 'Trabajo de fotografía'}
+              width={1200}
+              height={900}
+              className="w-full h-auto max-h-[85vh] object-contain rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
+            {lightboxPhoto.title && (
+              <p className="text-center text-white font-bold mt-4">{lightboxPhoto.title}</p>
+            )}
+          </div>
+        </div>
       )}
 
       {/* ===== PAQUETES ===== */}
@@ -251,9 +293,9 @@ export default function HomePage() {
         <div className="flex flex-wrap gap-3 justify-center mb-12">
           {[
             { label: 'Todos', value: '' },
-            { label: '🎬 Estudio', value: 'studio' },
-            { label: '🌿 Exteriores', value: 'exterior' },
-            { label: '✨ Combinados', value: 'both' },
+            { label: 'Estudio', value: 'studio' },
+            { label: 'Exteriores', value: 'exterior' },
+            { label: 'Combinados', value: 'both' },
           ].map((filter) => (
             <button
               key={filter.value}
@@ -271,8 +313,8 @@ export default function HomePage() {
 
         {/* Packages Grid */}
         {loading ? (
-          <div className="text-center py-12">
-            <div className="text-neutral-400">Cargando paquetes...</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {Array.from({ length: 6 }).map((_, i) => <PackageCardSkeleton key={i} />)}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -406,14 +448,14 @@ export default function HomePage() {
 
             <div className="space-y-6">
               {[
-                { icon: '📍', title: 'Ubicación', text: 'Metetí, Darién, Panamá' },
-                { icon: '📱', title: 'Teléfono / Yappy', text: '+507 6664-7343' },
-                { icon: '✉️', title: 'Email', text: 'info@photostudio.com' },
-                { icon: '⏰', title: 'Horario', text: 'Lun — Sáb: 9:00am — 6:00pm' },
+                { Icon: MapPin, title: 'Ubicación', text: 'Metetí, Darién, Panamá' },
+                { Icon: Smartphone, title: 'Teléfono / Yappy', text: '+507 6664-7343' },
+                { Icon: Mail, title: 'Email', text: 'info@photostudio.com' },
+                { Icon: Clock, title: 'Horario', text: 'Lun — Sáb: 9:00am — 6:00pm' },
               ].map((contact, i) => (
                 <div key={i} className="flex gap-4">
-                  <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 text-lg">
-                    {contact.icon}
+                  <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 text-primary">
+                    <contact.Icon size={20} />
                   </div>
                   <div>
                     <div className="font-bold text-sm">{contact.title}</div>

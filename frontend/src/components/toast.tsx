@@ -36,19 +36,19 @@ export function ToastContainer() {
     };
   }, []);
 
-  const bgColors = {
-    success: 'bg-green-600',
-    error: 'bg-red-600',
-    info: 'bg-blue-600',
-    warning: 'bg-yellow-600',
+  const colors = {
+    success: 'bg-green-600 text-white',
+    error: 'bg-red-600 text-white',
+    info: 'bg-blue-600 text-white',
+    warning: 'bg-amber-500 text-black',
   };
 
   return (
-    <div className="fixed top-4 right-4 z-50 flex flex-col gap-2">
+    <div className="fixed inset-x-4 bottom-4 z-50 flex flex-col gap-2 sm:inset-x-auto sm:top-4 sm:right-4 sm:bottom-auto">
       {toasts.map(toast => (
         <div
           key={toast.id}
-          className={`${bgColors[toast.type]} text-white px-4 py-3 rounded-lg shadow-lg animate-slide-in`}
+          className={`${colors[toast.type]} px-4 py-3 rounded-lg shadow-lg animate-slide-in w-full sm:w-auto sm:max-w-sm break-words font-medium`}
         >
           {toast.message}
         </div>

@@ -14,7 +14,10 @@ import {
   RefreshCw,
   LogOut,
   ExternalLink,
+  Menu,
+  X,
 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { galleryService, type GalleryPhoto } from "@/services/galleryService";
 import {
   apiCreatePackageForm,
@@ -541,7 +544,15 @@ export default function AdminPage() {
   }, [filteredSummary.topPackages]);
 
   if (!currentUser) {
-    return <div className="container mx-auto px-6 py-20 text-center text-neutral-400">Cargando panel administrativo...</div>;
+    return (
+      <div className="container mx-auto px-6 py-12 space-y-4">
+        <Skeleton className="h-10 w-64" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-28 w-full" />)}
+        </div>
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
   }
 
   if (currentUser.role !== "admin") {
@@ -1052,7 +1063,7 @@ export default function AdminPage() {
         currentUser={currentUser}
       />
 
-      <main className="flex-1 px-6 py-10 lg:px-10 overflow-x-hidden">
+      <main className="flex-1 px-6 pt-20 pb-10 lg:px-10 lg:py-10 overflow-x-hidden">
         <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between mb-8">
           <div>
             <div className="text-xs font-bold uppercase tracking-[0.3em] text-primary mb-3">Panel administrativo</div>
@@ -1145,7 +1156,9 @@ export default function AdminPage() {
 
         {loading ? (
           <Panel title="Cargando">
-            <div className="py-12 text-center text-neutral-400">Cargando datos del panel administrativo...</div>
+            <div className="space-y-3 py-4">
+              {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
+            </div>
           </Panel>
         ) : (
           <>
@@ -1173,66 +1186,95 @@ function AdminSidebar({
   currentUser: AdminUser;
 }) {
   const [open, setOpen] = useState(true);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <nav
-      className={`sticky top-0 h-screen shrink-0 border-r border-neutral-800 bg-neutral-900 p-2 shadow-sm transition-all duration-300 ease-in-out ${
-        open ? "w-64" : "w-16"
-      }`}
-    >
-      <div className="mb-6 border-b border-neutral-800 pb-4">
-        <div className="flex items-center gap-3 rounded-md p-2">
-          <div className="grid size-10 shrink-0 place-content-center rounded-lg bg-gradient-to-br from-primary to-primary/70 shadow-sm text-sm font-black text-primary-foreground">
-            OF
-          </div>
-          {open && (
-            <div className="min-w-0">
-              <span className="block truncate text-sm font-semibold text-white">{currentUser.name}</span>
-              <span className="block truncate text-xs text-neutral-500">{currentUser.email}</span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="space-y-1">
-        {navItems.map((item) => {
-          const isSelected = activeTab === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`relative flex h-11 w-full items-center rounded-md transition-all duration-200 ${
-                isSelected
-                  ? "bg-primary/15 text-primary border-l-2 border-primary"
-                  : "text-neutral-400 hover:bg-white/5 hover:text-white"
-              }`}
-            >
-              <div className="grid h-full w-12 place-content-center">
-                <item.icon className="h-4 w-4" />
-              </div>
-              {open && <span className="flex-1 truncate text-left text-sm font-medium">{item.label}</span>}
-              {!!item.notifs && open && (
-                <span className="absolute right-3 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
-                  {item.notifs}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
+    <>
       <button
-        onClick={() => setOpen(!open)}
-        className="absolute bottom-0 left-0 right-0 border-t border-neutral-800 transition-colors hover:bg-white/5"
+        onClick={() => setMobileOpen(true)}
+        className="fixed top-4 left-4 z-30 grid size-11 place-content-center rounded-full bg-neutral-900 border border-neutral-800 text-white shadow-lg lg:hidden"
+        aria-label="Abrir menú"
       >
-        <div className="flex items-center p-3">
-          <div className="grid size-10 place-content-center">
-            <ChevronsRight className={`h-4 w-4 text-neutral-400 transition-transform duration-300 ${open ? "rotate-180" : ""}`} />
-          </div>
-          {open && <span className="text-sm font-medium text-neutral-300">Ocultar</span>}
-        </div>
+        <Menu className="h-5 w-5" />
       </button>
-    </nav>
+
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/60 lg:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
+      <nav
+        className={`fixed lg:sticky top-0 left-0 h-screen shrink-0 border-r border-neutral-800 bg-neutral-900 p-2 shadow-sm z-50 transition-transform duration-300 ease-in-out lg:translate-x-0 ${
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        } ${open ? "w-64" : "w-16"} lg:transition-all`}
+      >
+        <button
+          onClick={() => setMobileOpen(false)}
+          className="absolute top-2 right-2 grid size-9 place-content-center rounded-md text-neutral-400 hover:bg-white/5 hover:text-white lg:hidden"
+          aria-label="Cerrar menú"
+        >
+          <X className="h-4 w-4" />
+        </button>
+
+        <div className="mb-6 border-b border-neutral-800 pb-4">
+          <div className="flex items-center gap-3 rounded-md p-2">
+            <div className="grid size-10 shrink-0 place-content-center rounded-lg bg-gradient-to-br from-primary to-primary/70 shadow-sm text-sm font-black text-primary-foreground">
+              OF
+            </div>
+            {open && (
+              <div className="min-w-0">
+                <span className="block truncate text-sm font-semibold text-white">{currentUser.name}</span>
+                <span className="block truncate text-xs text-neutral-500">{currentUser.email}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          {navItems.map((item) => {
+            const isSelected = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => {
+                  setActiveTab(item.id);
+                  setMobileOpen(false);
+                }}
+                className={`relative flex h-11 w-full items-center rounded-md transition-all duration-200 ${
+                  isSelected
+                    ? "bg-primary/15 text-primary border-l-2 border-primary"
+                    : "text-neutral-400 hover:bg-white/5 hover:text-white"
+                }`}
+              >
+                <div className="grid h-full w-12 place-content-center">
+                  <item.icon className="h-4 w-4" />
+                </div>
+                {open && <span className="flex-1 truncate text-left text-sm font-medium">{item.label}</span>}
+                {!!item.notifs && open && (
+                  <span className="absolute right-3 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
+                    {item.notifs}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        <button
+          onClick={() => setOpen(!open)}
+          className="absolute bottom-0 left-0 right-0 hidden border-t border-neutral-800 transition-colors hover:bg-white/5 lg:flex"
+        >
+          <div className="flex items-center p-3">
+            <div className="grid size-10 place-content-center">
+              <ChevronsRight className={`h-4 w-4 text-neutral-400 transition-transform duration-300 ${open ? "rotate-180" : ""}`} />
+            </div>
+            {open && <span className="text-sm font-medium text-neutral-300">Ocultar</span>}
+          </div>
+        </button>
+      </nav>
+    </>
   );
 }
 
