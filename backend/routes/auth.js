@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
-const { register, login, getMe, forgotPassword, resetPassword, updateProfile } = require('../controllers/authController');
+const { register, login, getMe, forgotPassword, resetPassword, updateProfile, googleLogin } = require('../controllers/authController');
 const { protect } = require('../middleware/auth');
 
 const upload = multer({
@@ -18,6 +18,7 @@ const upload = multer({
 
 router.post('/register', register);
 router.post('/login', login);
+router.post('/google', googleLogin);
 router.get('/me', protect, getMe);
 router.put('/me', protect, upload.single('avatar'), updateProfile);
 router.post('/forgot-password', forgotPassword);

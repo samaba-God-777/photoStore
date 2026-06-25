@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import Footer from "@/components/footer";
@@ -18,6 +19,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body suppressHydrationWarning className="min-h-screen flex flex-col antialiased bg-background text-foreground">
+        <Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" />
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

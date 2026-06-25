@@ -1,9 +1,12 @@
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const { OAuth2Client } = require('google-auth-library');
 const prisma = require('../lib/prisma');
 const sendEmail = require('../utils/email');
 const { uploadBuffer } = require('../utils/storage');
+
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 // Generar JWT
 const generateToken = (userId) => {
@@ -73,6 +76,9 @@ const login = async (req, res) => {
     const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
     if (!user) {
       return res.status(401).json({ success: false, message: 'Credenciales inválidas.' });
+    }
+    if (!user.password) {
+      return res.status(401).json({ success: false, message: 'Esta cuenta usa "Continuar con Google". Inicia sesión con Google.' });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
@@ -237,4 +243,56 @@ const updateProfile = async (req, res) => {
   }
 };
 
-module.exports = { register, login, getMe, forgotPassword, resetPassword, updateProfile };
+// @desc    Login / registro con Google
+// @route   POST /api/auth/google
+// @access  Público
+const googleLogin = async (req, res) => {
+  try {
+    const { credential } = req.body;
+    if (!credential) {
+      return res.status(400).json({ success: false, message: 'Falta el token de Google.' });
+    }
+
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID
+    });
+    const payload = ticket.getPayload();
+    if (!payload?.email) {
+      return res.status(400).json({ success: false, message: 'No se pudo verificar la cuenta de Google.' });
+    }
+
+    const email = payload.email.toLowerCase();
+    let user = await prisma.user.findUnique({ where: { email } });
+
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          name: payload.name || email.split('@')[0],
+          email,
+          googleId: payload.sub,
+          avatar: payload.picture || null
+        }
+      });
+    } else if (!user.googleId) {
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { googleId: payload.sub, avatar: user.avatar || payload.picture || null }
+      });
+    }
+
+    const token = generateToken(user.id);
+
+    res.json({
+      success: true,
+      message: 'Sesión iniciada con Google.',
+      token,
+      user: publicUser(user)
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(401).json({ success: false, message: 'No se pudo verificar la cuenta de Google.' });
+  }
+};
+
+module.exports = { register, login, getMe, forgotPassword, resetPassword, updateProfile, googleLogin };

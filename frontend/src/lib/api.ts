@@ -66,6 +66,13 @@ export const apiLogin = (body: Record<string, unknown>) =>
     body: JSON.stringify(body),
   });
 
+export const apiGoogleLogin = (credential: string) =>
+  request(`${BASE_URL}/auth/google`, {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify({ credential }),
+  });
+
 export const apiGetMe = () =>
   request(`${BASE_URL}/auth/me`, {
     method: 'GET',

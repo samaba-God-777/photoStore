@@ -1,7 +1,7 @@
 'use client';
 import { Suspense } from 'react';
 import { Component as SignInFlo } from '@/components/ui/sign-in-flo';
-import { apiLogin, apiRegister } from '@/lib/api';
+import { apiLogin, apiRegister, apiGoogleLogin } from '@/lib/api';
 import { saveToken, saveUser, showToast } from '@/lib/helpers';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -42,10 +42,29 @@ function AuthContent() {
     }
   };
 
+  const handleGoogleCredential = async (credential: string) => {
+    try {
+      const response = await apiGoogleLogin(credential);
+      if (response?.token && response?.user) {
+        const userData = { ...response.user, _id: response.user._id || response.user.id };
+        saveToken(response.token);
+        saveUser(userData);
+        showToast('¡Bienvenido!', 'success');
+        router.push(returnTo);
+        setTimeout(() => router.refresh(), 100);
+      } else {
+        throw new Error('Respuesta del servidor incompleta');
+      }
+    } catch (error: unknown) {
+      console.error('Google login error:', error);
+      showToast(error instanceof Error ? error.message : 'Error al iniciar sesión con Google.', 'error');
+    }
+  };
+
   return (
     <div className="relative min-h-screen w-full flex items-center justify-center px-4 py-12 bg-black">
       <div className="relative z-20 w-full max-w-md animate-fadeIn">
-        <SignInFlo onSubmit={handleLogin} initialIsRegister={initialIsRegister} />
+        <SignInFlo onSubmit={handleLogin} onGoogleCredential={handleGoogleCredential} initialIsRegister={initialIsRegister} />
 
         <div className="mt-6 text-center">
           <Link href="/" className="text-sm text-white/60 hover:text-white transition-colors">

@@ -1,8 +1,64 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Eye, EyeOff, Globe, Mail, Lock, User } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, User } from "lucide-react";
 import Link from "next/link";
+
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: {
+            client_id: string;
+            callback: (response: { credential: string }) => void;
+          }) => void;
+          renderButton: (
+            parent: HTMLElement,
+            options: { theme?: string; size?: string; width?: number; text?: string }
+          ) => void;
+        };
+      };
+    };
+  }
+}
+
+const GoogleSignInButton: React.FC<{ onCredential: (credential: string) => void }> = ({ onCredential }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+    if (!clientId || !containerRef.current) return;
+
+    let cancelled = false;
+    const tryRender = () => {
+      if (cancelled || !containerRef.current) return;
+      if (!window.google?.accounts?.id) {
+        setTimeout(tryRender, 200);
+        return;
+      }
+      window.google.accounts.id.initialize({
+        client_id: clientId,
+        callback: (response) => onCredential(response.credential),
+      });
+      window.google.accounts.id.renderButton(containerRef.current, {
+        theme: "filled_black",
+        size: "large",
+        width: 320,
+        text: "continue_with",
+      });
+    };
+    tryRender();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID) return null;
+  return <div ref={containerRef} className="flex justify-center" />;
+};
 
 interface FormFieldProps {
   type: string;
@@ -92,27 +148,6 @@ const AnimatedFormField: React.FC<FormFieldProps> = ({
   );
 };
 
-const SocialButton: React.FC<{ icon: React.ReactNode; name: string }> = ({ icon, name }) => {
-  const [isHovered, setIsHovered] = useState(false);
-
-  return (
-    <button
-      type="button"
-      className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-3 text-white/80 transition-all duration-300 ease-in-out hover:bg-white/10"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      aria-label={name}
-    >
-      <div
-        className={`absolute inset-0 bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-pink-500/20 transition-transform duration-500 ${
-          isHovered ? "translate-x-0" : "-translate-x-full"
-        }`}
-      />
-      <div className="relative">{icon}</div>
-    </button>
-  );
-};
-
 const FloatingParticles: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -193,8 +228,9 @@ const FloatingParticles: React.FC = () => {
 
 export const Component: React.FC<{
   onSubmit: (email: string, password: string, remember: boolean, name?: string) => Promise<void>;
+  onGoogleCredential?: (credential: string) => void;
   initialIsRegister?: boolean;
-}> = ({ onSubmit, initialIsRegister = false }) => {
+}> = ({ onSubmit, onGoogleCredential, initialIsRegister = false }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -321,10 +357,10 @@ export const Component: React.FC<{
               </div>
             </div>
 
-            <div className="mt-6 grid grid-cols-3 gap-3">
-              <SocialButton icon={<Globe size={20} />} name="Sitio web" />
-              <SocialButton icon={<Mail size={20} />} name="Correo" />
-              <SocialButton icon={<User size={20} />} name="Perfil" />
+            <div className="mt-6">
+              {onGoogleCredential ? (
+                <GoogleSignInButton onCredential={onGoogleCredential} />
+              ) : null}
             </div>
           </div>
 
