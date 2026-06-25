@@ -29,6 +29,7 @@ import {
   apiGetAdminUsers,
   apiGetOnlineUsers,
   apiGetOrders,
+  apiSetOrderAppointment,
   apiUpdateOrderStatus,
   apiUpdatePackageForm,
   apiUpdateUserRole,
@@ -65,6 +66,7 @@ type AdminOrder = {
   _id: string;
   orderNumber?: string;
   createdAt: string;
+  appointmentDate?: string | null;
   total: number;
   status: string;
   paymentMethod?: string;
@@ -312,6 +314,19 @@ export default function AdminPage() {
       await loadData();
     } catch (error) {
       showToast(error instanceof Error ? error.message : "No se pudo actualizar la orden", "error");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleOrderAppointment = async (id: string, dateValue: string) => {
+    setBusyId(id);
+    try {
+      await apiSetOrderAppointment(id, dateValue ? new Date(dateValue).toISOString() : null);
+      showToast("Fecha de sesión actualizada", "success");
+      await loadData();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "No se pudo actualizar la fecha de sesión", "error");
     } finally {
       setBusyId(null);
     }
@@ -859,6 +874,7 @@ export default function AdminPage() {
               <th className="px-4 py-4">Cliente</th>
               <th className="px-4 py-4">Paquetes</th>
               <th className="px-4 py-4">Estado</th>
+              <th className="px-4 py-4">Fecha de sesión</th>
               <th className="px-4 py-4">Total</th>
               <th className="px-4 py-4">Acciones</th>
             </tr>
@@ -890,6 +906,15 @@ export default function AdminPage() {
                     <option value="cancelled">Cancelada</option>
                   </select>
                 </td>
+                <td className="px-4 py-4">
+                  <input
+                    type="date"
+                    defaultValue={order.appointmentDate ? order.appointmentDate.slice(0, 10) : ""}
+                    onBlur={(e) => handleOrderAppointment(order._id, e.target.value)}
+                    disabled={busyId === order._id}
+                    className="rounded-full border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white outline-none disabled:opacity-60"
+                  />
+                </td>
                 <td className="px-4 py-4 font-bold text-white">{formatCurrency(order.total)}</td>
                 <td className="px-4 py-4">
                   <button onClick={() => handleDeleteOrder(order._id)} disabled={busyId === order._id} className="rounded-full border border-red-500/30 px-4 py-2 text-sm font-bold text-red-300 hover:bg-red-500/10 disabled:opacity-60">
@@ -899,7 +924,7 @@ export default function AdminPage() {
               </tr>
             )) : (
               <tr>
-                <td colSpan={6} className="px-4 py-20 text-center text-neutral-500">
+                <td colSpan={7} className="px-4 py-20 text-center text-neutral-500">
                   No hay órdenes para los filtros actuales.
                 </td>
               </tr>

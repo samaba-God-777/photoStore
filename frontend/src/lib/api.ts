@@ -159,6 +159,20 @@ export const apiUpdateOrderStatus = (id: string, body: Record<string, unknown>) 
     body: JSON.stringify(body),
   });
 
+export const apiSetOrderAppointment = (id: string, appointmentDate: string | null) =>
+  request(`${BASE_URL}/orders/${id}/appointment`, {
+    method: 'PUT',
+    headers: headers(),
+    body: JSON.stringify({ appointmentDate }),
+  });
+
+export const apiAddOrderComment = (id: string, content: string) =>
+  request(`${BASE_URL}/orders/${id}/comments`, {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify({ content }),
+  });
+
 export const apiUpdateProfile = (body: FormData) =>
   request(`${BASE_URL}/auth/me`, {
     method: 'PUT',

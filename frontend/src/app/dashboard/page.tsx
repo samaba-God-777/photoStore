@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiGetMyOrders } from '@/lib/api';
+import { apiGetMyOrders, apiAddOrderComment } from '@/lib/api';
 import { formatCurrency, formatDate, getToken, logout, type User } from '@/lib/helpers';
 
 interface OrderPackage {
@@ -18,14 +18,23 @@ interface OrderPackage {
   };
 }
 
+interface OrderComment {
+  _id: string;
+  content: string;
+  createdAt: string;
+  user?: { name?: string; avatar?: string };
+}
+
 interface Order {
   _id: string;
   orderNumber?: string;
   createdAt: string;
+  appointmentDate?: string | null;
   total: number;
   status: string;
   paymentMethod?: 'cash' | 'yappy';
   packages: OrderPackage[];
+  comments?: OrderComment[];
 }
 
 const getUserSnapshot = (): string | null => {
@@ -71,6 +80,9 @@ export default function DashboardPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
+  const [commentSubmitting, setCommentSubmitting] = useState<string | null>(null);
+  const [commentError, setCommentError] = useState<Record<string, string>>({});
 
   const isAuth = useMemo(() => !!getToken() && !!user, [user]);
 
@@ -100,6 +112,27 @@ export default function DashboardPage() {
   const handleLogout = () => {
     logout();
     router.replace('/');
+  };
+
+  const handleAddComment = async (orderId: string) => {
+    const content = (commentDrafts[orderId] || '').trim();
+    if (!content) return;
+
+    try {
+      setCommentSubmitting(orderId);
+      setCommentError((prev) => ({ ...prev, [orderId]: '' }));
+      const data = await apiAddOrderComment(orderId, content);
+      const updatedOrder = (data.data || data) as Order;
+      setOrders((prev) => prev.map((order) => (order._id === orderId ? updatedOrder : order)));
+      setCommentDrafts((prev) => ({ ...prev, [orderId]: '' }));
+    } catch (error) {
+      setCommentError((prev) => ({
+        ...prev,
+        [orderId]: error instanceof Error ? error.message : 'No se pudo agregar el comentario.',
+      }));
+    } finally {
+      setCommentSubmitting(null);
+    }
   };
 
   const { totalSpent, averageOrder, latestOrder, statusBreakdown, monthlyRevenue, topPackages } = useMemo(() => {
@@ -358,6 +391,15 @@ export default function DashboardPage() {
                         <p className="text-sm text-neutral-400">
                           {order.packages?.length || 0} paquete{(order.packages?.length || 0) !== 1 ? 's' : ''} en esta orden
                         </p>
+                        {order.appointmentDate ? (
+                          <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+                            📅 Sesión: {formatDate(order.appointmentDate)}
+                          </div>
+                        ) : (
+                          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-400">
+                            Aún sin fecha de sesión asignada
+                          </div>
+                        )}
                       </div>
                       <div className="text-left md:text-right">
                         <div className="text-xs uppercase tracking-[0.3em] text-neutral-500">Total</div>
@@ -382,6 +424,47 @@ export default function DashboardPage() {
                         })}
                       </div>
                     )}
+
+                    <div className="mt-5 border-t border-white/10 pt-5">
+                      <div className="text-xs uppercase tracking-[0.3em] text-neutral-500">Comentarios</div>
+                      <div className="mt-3 space-y-2">
+                        {order.comments && order.comments.length > 0 ? (
+                          order.comments.map((comment) => (
+                            <div key={comment._id} className="rounded-2xl border border-white/5 bg-white/5 p-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <span className="text-sm font-semibold text-white">{comment.user?.name || 'Tú'}</span>
+                                <span className="text-xs text-neutral-500">{formatDate(comment.createdAt)}</span>
+                              </div>
+                              <p className="mt-1 text-sm text-neutral-300">{comment.content}</p>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-sm text-neutral-500">Aún no hay comentarios en esta orden.</p>
+                        )}
+                      </div>
+
+                      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                        <input
+                          type="text"
+                          value={commentDrafts[order._id] || ''}
+                          onChange={(event) =>
+                            setCommentDrafts((prev) => ({ ...prev, [order._id]: event.target.value }))
+                          }
+                          placeholder="Escribe un comentario sobre esta orden…"
+                          className="flex-1 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white placeholder:text-neutral-500 focus:border-primary/40 focus:outline-none"
+                        />
+                        <button
+                          onClick={() => handleAddComment(order._id)}
+                          disabled={commentSubmitting === order._id || !(commentDrafts[order._id] || '').trim()}
+                          className="rounded-full bg-primary px-5 py-2 text-sm font-bold text-primary-foreground transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {commentSubmitting === order._id ? 'Enviando…' : 'Comentar'}
+                        </button>
+                      </div>
+                      {commentError[order._id] && (
+                        <p className="mt-2 text-xs text-rose-300">{commentError[order._id]}</p>
+                      )}
+                    </div>
                   </article>
                 ))}
               </div>

@@ -6,7 +6,10 @@ const generateOrderNumber = () => {
   return `PS-${now.toString().slice(-6)}${random}`;
 };
 
-const ORDER_INCLUDE = { items: { include: { package: { select: { name: true, image: true, category: true } } } } };
+const ORDER_INCLUDE = {
+  items: { include: { package: { select: { name: true, image: true, category: true } } } },
+  comments: { include: { user: { select: { name: true, avatar: true } } }, orderBy: { createdAt: 'asc' } }
+};
 const ORDER_INCLUDE_ADMIN = {
   user: { select: { name: true, email: true, phone: true } },
   ...ORDER_INCLUDE
@@ -21,7 +24,8 @@ const toClient = (order) => ({
     price: item.price,
     quantity: item.quantity,
     package: item.package ? { ...item.package, _id: item.packageId } : undefined
-  }))
+  })),
+  comments: (order.comments || []).map((c) => ({ ...c, _id: c.id }))
 });
 const toClientList = (orders) => orders.map(toClient);
 
@@ -156,4 +160,60 @@ const deleteOrder = async (req, res) => {
   }
 };
 
-module.exports = { createOrder, getMyOrders, getAllOrders, updateOrderStatus, deleteOrder };
+// @desc    Asignar/actualizar fecha de la sesión fotográfica (admin)
+// @route   PUT /api/orders/:id/appointment
+// @access  Admin
+const setAppointmentDate = async (req, res) => {
+  try {
+    const { appointmentDate } = req.body;
+    const date = appointmentDate ? new Date(appointmentDate) : null;
+    if (appointmentDate && Number.isNaN(date.getTime())) {
+      return res.status(400).json({ success: false, message: 'Fecha inválida.' });
+    }
+
+    const order = await prisma.order.findUnique({ where: { id: req.params.id } });
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Orden no encontrada.' });
+    }
+
+    const updated = await prisma.order.update({
+      where: { id: order.id },
+      data: { appointmentDate: date },
+      include: ORDER_INCLUDE
+    });
+    res.json({ success: true, message: 'Fecha de cita actualizada.', data: toClient(updated) });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Error del servidor.' });
+  }
+};
+
+// @desc    Agregar comentario a una orden (dueño de la orden)
+// @route   POST /api/orders/:id/comments
+// @access  Privado (dueño) / Admin
+const addComment = async (req, res) => {
+  try {
+    const { content } = req.body;
+    if (!content || !content.trim()) {
+      return res.status(400).json({ success: false, message: 'El comentario no puede estar vacío.' });
+    }
+
+    const order = await prisma.order.findUnique({ where: { id: req.params.id } });
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Orden no encontrada.' });
+    }
+    if (order.userId !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Acceso denegado.' });
+    }
+
+    await prisma.comment.create({
+      data: { orderId: order.id, userId: req.user.id, content: content.trim() }
+    });
+
+    const updated = await prisma.order.findUnique({ where: { id: order.id }, include: ORDER_INCLUDE });
+    res.status(201).json({ success: true, message: 'Comentario agregado.', data: toClient(updated) });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Error del servidor.' });
+  }
+};
+
+module.exports = { createOrder, getMyOrders, getAllOrders, updateOrderStatus, deleteOrder, setAppointmentDate, addComment };
